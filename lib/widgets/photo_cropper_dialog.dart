@@ -29,16 +29,21 @@ class _PhotoCropperDialogState extends State<PhotoCropperDialog> {
     if (_isProcessing) return;
     setState(() => _isProcessing = true);
 
+    ui.Codec? codec;
+    ui.FrameInfo? frame;
+    ui.Image? originalImage;
+    ui.Image? croppedImage;
+
     try {
       // 1. Декодируем исходное изображение
-      final codec = await ui.instantiateImageCodec(widget.imageBytes);
-      final frame = await codec.getNextFrame();
-      final originalImage = frame.image;
+      codec = await ui.instantiateImageCodec(widget.imageBytes);
+      frame = await codec.getNextFrame();
+      originalImage = frame.image;
 
       final double imgWidth = originalImage.width.toDouble();
       final double imgHeight = originalImage.height.toDouble();
 
-      // Размеры вьюпорта
+      // Размеры вьюпорта и области обрезки
       const double viewportWidth = 380.0;
       const double viewportHeight = 300.0;
       const double cropSize = 220.0;
@@ -54,7 +59,7 @@ class _PhotoCropperDialogState extends State<PhotoCropperDialog> {
       final double initialOffsetX = (viewportWidth - fittedW) / 2;
       final double initialOffsetY = (viewportHeight - fittedH) / 2;
 
-      // 3. Получаем трансформацию пользователя
+      // 3. Расчет пользовательской трансформации
       final Matrix4 matrix = _transformationController.value;
       final double userScale = matrix.getMaxScaleOnAxis();
       final double userTranslationX = matrix.storage[12];
@@ -70,7 +75,7 @@ class _PhotoCropperDialogState extends State<PhotoCropperDialog> {
 
       final double cropRadiusInImage = (cropSize / 2) / (fittedScale * userScale);
 
-      // 4. Отрисовка в Canvas
+      // 4. Отрисовка с помощью Canvas
       const int outputSize = 512;
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
@@ -92,11 +97,12 @@ class _PhotoCropperDialogState extends State<PhotoCropperDialog> {
       );
 
       final picture = recorder.endRecording();
-      final croppedImage = await picture.toImage(outputSize, outputSize);
+      croppedImage = await picture.toImage(outputSize, outputSize);
+      picture.dispose(); // Освобождаем память
+
       final byteData = await croppedImage.toByteData(format: ui.ImageByteFormat.png);
 
       if (byteData != null && mounted) {
-        // Возвращаем СТРОГО Uint8List
         final Uint8List resultBytes = byteData.buffer.asUint8List();
         Navigator.pop(context, resultBytes);
       } else if (mounted) {
@@ -108,6 +114,11 @@ class _PhotoCropperDialogState extends State<PhotoCropperDialog> {
         Navigator.pop(context, widget.imageBytes);
       }
     } finally {
+      // Очистка нативных ресурсов во избежание утечки памяти
+      originalImage?.dispose();
+      croppedImage?.dispose();
+      codec?.dispose();
+
       if (mounted) {
         setState(() => _isProcessing = false);
       }
@@ -169,7 +180,7 @@ class _PhotoCropperDialogState extends State<PhotoCropperDialog> {
                     ),
                   ),
 
-                  // Маска обрезки с сеткой
+                  // Маска обрезки
                   IgnorePointer(
                     child: Stack(
                       children: [

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import '../utils/badge_manager.dart';
+import 'chat_sync_service.dart';
 
 enum UserStatus { online, idle, offline }
 
@@ -205,6 +206,7 @@ class AuthService {
     });
   }
 
+  /// Полная очистка состояния и кэша при выходе
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString(_currentUserKey);
@@ -212,6 +214,8 @@ class AuthService {
       try {
         final localUser = UserProfile.fromJson(jsonDecode(data));
         await updatePresenceStatus(localUser.id, isOnline: false);
+        // Очищаем кэш сообщений именно этого пользователя
+        await ChatSyncService().clearCache(localUser.id);
       } catch (_) {}
     }
     await prefs.remove(_currentUserKey);

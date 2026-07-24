@@ -1,25 +1,160 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:file_picker/file_picker.dart' as file_picker_lib;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/auth_service.dart';
-import 'package:file_picker/file_picker.dart' as file_picker_lib;
-import 'dart:io';
 import 'package:my_app/screens/auth_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../utils/badge_manager.dart';
 import 'package:my_app/widgets/status_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_model.dart';
+import '../services/auth_service.dart';
 import '../services/chat_sync_service.dart';
+import '../utils/badge_manager.dart';
+import '../widgets/animated_message.dart';
 import '../widgets/chat_header.dart';
 import '../widgets/chat_welcome_card.dart';
-import '../widgets/animated_message.dart';
 import '../widgets/profile_sidebar.dart';
 
 enum ActiveWorkspaceTab { chat, addFriend }
 
+/// ============================================================================
+/// КАСТОМНЫЙ ВИДЖЕТ КРУГЛОЙ НЕОНОВОЙ ИКОНКИ (XYPHRA LOGO)
+/// ============================================================================
+class XyphraLogoIcon extends StatelessWidget {
+  final double size;
+  final bool showOuterGlow;
+
+  const XyphraLogoIcon({
+    super.key,
+    this.size = 40.0,
+    this.showOuterGlow = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: showOuterGlow
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF7C4DFF).withValues(alpha: 0.35),
+                  blurRadius: size * 0.25,
+                  spreadRadius: 1,
+                )
+              ]
+            : null,
+      ),
+      child: CustomPaint(
+        size: Size(size, size),
+        painter: _XyphraLogoPainter(),
+      ),
+    );
+  }
+}
+
+class _XyphraLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width * 0.44;
+
+    final bgGradient = const RadialGradient(
+      colors: [
+        Color(0xFF1F1A3A),
+        Color(0xFF0F0B1E),
+        Color(0xFF05030A),
+      ],
+      stops: [0.0, 0.7, 1.0],
+    );
+
+    final bgPaint = Paint()
+      ..shader = bgGradient.createShader(
+        Rect.fromCircle(center: center, radius: radius),
+      );
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    final strokeGlowPaint = Paint()
+      ..shader = const SweepGradient(
+        colors: [
+          Color(0xFF7C4DFF),
+          Color(0xFFE040FB),
+          Color(0xFF00E5FF),
+          Color(0xFF7C4DFF),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.028
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.025);
+
+    final strokePaint = Paint()
+      ..shader = const SweepGradient(
+        colors: [
+          Color(0xFFB388FF),
+          Color(0xFFEA80FC),
+          Color(0xFF80D8FF),
+          Color(0xFFB388FF),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.018;
+
+    canvas.drawCircle(center, radius, strokeGlowPaint);
+    canvas.drawCircle(center, radius, strokePaint);
+
+    final w = size.width;
+    final h = size.height;
+
+    final paintGlow = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF7C4DFF), Color(0xFFE040FB)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.075
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.05);
+
+    final paintLine = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFFD1C4E9), Color(0xFFEA80FC), Colors.white],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.065
+      ..strokeCap = StrokeCap.round;
+
+    final pathLeft = Path()
+      ..moveTo(w * 0.32, h * 0.32)
+      ..lineTo(w * 0.68, h * 0.68);
+
+    final pathBolt = Path()
+      ..moveTo(w * 0.68, h * 0.32)
+      ..lineTo(w * 0.48, h * 0.52)
+      ..lineTo(w * 0.56, h * 0.52)
+      ..lineTo(w * 0.32, h * 0.68);
+
+    canvas.drawPath(pathLeft, paintGlow);
+    canvas.drawPath(pathBolt, paintGlow);
+    canvas.drawPath(pathLeft, paintLine);
+    canvas.drawPath(pathBolt, paintLine);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// ============================================================================
+/// ГЛАВНЫЙ ЭКРАН РАБОЧЕЙ ОБЛАСТИ
+/// ============================================================================
 class MainWorkspaceScreen extends StatefulWidget {
   final UserProfile currentUser;
   final bool isConnected;
@@ -47,7 +182,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   final TextEditingController _searchFriendController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
 
-  late final UserProfile _savedMessagesUser, _xyphraBot;
+  late final UserProfile _savedMessagesUser;
+  late final UserProfile _xyphraBot;
   late UserProfile _selectedTargetUser;
 
   ChatMessage? _editingMessage;
@@ -58,7 +194,12 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   final Map<String, List<ChatMessage>> _chatHistory = {};
   StreamSubscription<List<ChatMessage>>? _chatSubscription;
   StreamSubscription<List<ChatMessage>>? _globalIncomingMessagesSubscription;
+  StreamSubscription<Set<String>>? _activeChatsSubscription;
+  StreamSubscription<Map<String, int>>? _unreadCountsSubscription;
   RealtimeChannel? _profilesRealtimeChannel;
+
+  Map<String, int> _unreadCountsMap = {};
+  Set<String> _activeChatUserIds = {};
 
   String _searchQuery = '';
   bool _isSearchingUsers = false;
@@ -81,10 +222,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     if (user.badges.any((b) => b == 'BOT' || b == 'SAVED')) return true;
     if (user.id == widget.currentUser.id) return widget.isConnected;
     if (!widget.isConnected || !user.isOnline) return false;
-    
-    // ИСПРАВЛЕНИЕ: Вынесено в отдельный if, чтобы null не приводил к true
-    if (user.lastSeen == null) return false; 
-    return DateTime.now().toUtc().difference(user.lastSeen!.toUtc()).inSeconds <= 120;
+    return user.lastSeen == null ||
+        DateTime.now().toUtc().difference(user.lastSeen!.toUtc()).inSeconds <= 120;
   }
 
   Widget _buildStatusIndicatorForUser(UserProfile user, {double size = 10}) =>
@@ -99,7 +238,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   void initState() {
     super.initState();
     _syncUserBadges(widget.currentUser);
-    AuthService.saveSession(widget.currentUser);
 
     _savedMessagesUser = UserProfile(
       id: 'saved_messages_${widget.currentUser.id}',
@@ -118,7 +256,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       username: 'xyphra_official',
       tag: '0001',
       displayName: 'Xyphra Bot',
-      bio: 'Официальный ассистент и гид по платформе Xyphra.',
+      bio: 'Официальный умный ассистент и гид по нейросети Xyphra.',
       avatarUrl: '',
       bannerColor: '0xFF673AB7',
       joinedDate: '21 июля 2026 г.',
@@ -129,10 +267,38 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     _allGlobalUsers.addAll([widget.currentUser, _savedMessagesUser, _xyphraBot]);
     _selectedTargetUser = _xyphraBot;
 
-    _loadCachedMessages();
-    _loadGlobalUsersFromServer();
-    _subscribeToProfilesRealtime();
-    _subscribeToGlobalIncomingMessages();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthService.saveSession(widget.currentUser);
+      _loadCachedMessages();
+      _loadGlobalUsersFromServer();
+      _subscribeToProfilesRealtime();
+      _subscribeToGlobalIncomingMessages();
+      _subscribeToReactiveStreams();
+    });
+  }
+
+  void _subscribeToReactiveStreams() {
+    _activeChatsSubscription?.cancel();
+    _activeChatsSubscription = _chatSyncService
+        .streamActiveChatUserIds(widget.currentUser.id)
+        .listen((ids) {
+      if (mounted) {
+        setState(() {
+          _activeChatUserIds = ids;
+        });
+      }
+    });
+
+    _unreadCountsSubscription?.cancel();
+    _unreadCountsSubscription = _chatSyncService
+        .streamUnreadCountsMap(widget.currentUser.id)
+        .listen((map) {
+      if (mounted) {
+        setState(() {
+          _unreadCountsMap = map;
+        });
+      }
+    });
   }
 
   void _subscribeToGlobalIncomingMessages() {
@@ -152,8 +318,12 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
         }
       });
 
-      _chatSyncService.saveChatHistory(_chatHistory);
-      if (_selectedTargetUser.id == senderId) _scrollToBottom();
+      _chatSyncService.saveChatHistory(widget.currentUser.id, _chatHistory);
+      if (_selectedTargetUser.id == senderId) {
+        _scrollToBottom();
+        // Уберите или закомментируйте эту строку, если метод не нужен:
+        // _chatSyncService.markChatAsRead(widget.currentUser.id, senderId);
+      }
     });
   }
 
@@ -236,26 +406,23 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   }
 
   Future<void> _loadCachedMessages() async {
-    final cached = await _chatSyncService.loadChatHistory();
+    final cached = await _chatSyncService.loadChatHistory(widget.currentUser.id);
     final prefs = await SharedPreferences.getInstance();
     final savedUserId =
         prefs.getString('last_active_user_id_${widget.currentUser.id}');
 
     if (!mounted) return;
-    
     setState(() {
       if (cached.isNotEmpty) {
         cached.forEach((k, list) => list.sort((a, b) => a.timestamp.compareTo(b.timestamp)));
         _chatHistory.addAll(cached);
-      }
-
-      // ИСПРАВЛЕНИЕ: Вынесено из блока else, чтобы бот всегда имел чат, даже если кэш других чатов не пуст.
-      if (!_chatHistory.containsKey(_xyphraBot.id) || _chatHistory[_xyphraBot.id]!.isEmpty) {
+      } else {
         _chatHistory[_xyphraBot.id] = [
           ChatMessage(
             id: 'welcome_msg',
             senderId: _xyphraBot.id,
-            text: 'Welcome To Xyphra! 🚀\nИсследуй возможности и находи друзей по их никнеймам.',
+            text:
+                'Добро пожаловать в Xyphra! 🚀\nИсследуй возможности экосистемы, общайся и находи друзей.',
             timestamp: DateTime.now().toUtc(),
           )
         ];
@@ -277,6 +444,9 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     _chatSubscription = null;
     final activeId = _selectedTargetUser.id;
 
+    // Уберите или закомментируйте эту строку, если метод не нужен:
+    // _chatSyncService.markChatAsRead(widget.currentUser.id, activeId);
+
     if (activeId == _xyphraBot.id || activeId == _savedMessagesUser.id) return;
 
     _chatSubscription = _chatSyncService.subscribeToChat(
@@ -285,22 +455,38 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       onData: (serverMessages) {
         if (mounted && _selectedTargetUser.id == activeId) {
           setState(() => _chatHistory[activeId] = serverMessages);
-          _chatSyncService.saveChatHistory(_chatHistory);
+          _chatSyncService.saveChatHistory(widget.currentUser.id, _chatHistory);
+          _scrollToBottom();
         }
       },
     );
   }
 
+  /// АВТОСКРОЛЛ К ПОСЛЕДНЕМУ СООБЩЕНИЮ ВНИЗ
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_chatScrollController.hasClients) {
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-        );
-      }
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (_chatScrollController.hasClients) {
+          _chatScrollController.animateTo(
+            _chatScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
     });
+  }
+
+  void _selectUserAndSwitchChat(UserProfile user) {
+    _chatSubscription?.cancel();
+    _chatSubscription = null;
+    setState(() {
+      _selectedTargetUser = user;
+      _currentTab = ActiveWorkspaceTab.chat;
+    });
+    _saveLastActiveUserId(user.id);
+    _subscribeToSelectedChat();
+    _scrollToBottom();
   }
 
   @override
@@ -311,6 +497,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     }
     _chatSubscription?.cancel();
     _globalIncomingMessagesSubscription?.cancel();
+    _activeChatsSubscription?.cancel();
+    _unreadCountsSubscription?.cancel();
     _msgController.dispose();
     _msgFocusNode.dispose();
     _searchFriendController.dispose();
@@ -324,6 +512,30 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     return null;
   }
 
+  /// УНИВЕРСАЛЬНЫЙ АВАТАР (ПОДСТАВЛЯЕТ XYPHRA LOGO ДЛЯ БОТА ВЕЗДЕ)
+  Widget _buildUserAvatarWidget(UserProfile user, {double radius = 16}) {
+    if (user.id == _xyphraBot.id || user.badges.contains('BOT')) {
+      return XyphraLogoIcon(size: radius * 2, showOuterGlow: false);
+    }
+
+    final avatarProvider = _getUserAvatarProvider(user);
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.deepPurple,
+      backgroundImage: avatarProvider,
+      child: avatarProvider == null
+          ? Text(
+              user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : 'U',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: radius * 0.8,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          : null,
+    );
+  }
+
   Future<void> _pickMediaFromGallery() async {
     try {
       final result = await file_picker_lib.FilePicker.pickFiles(
@@ -335,21 +547,20 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
-        
+
         if (bytes == null) return;
-        
+
         final ext = file.name.toLowerCase();
 
-        if (mounted) {
-          setState(() {
-            _attachedMediaBytes = bytes;
-            _attachedMediaName = file.name;
-            _isVideoMedia = ext.endsWith('.mp4') || ext.endsWith('.mov') || ext.endsWith('.avi');
-          });
-        }
+        setState(() {
+          _attachedMediaBytes = bytes;
+          _attachedMediaName = file.name;
+          _isVideoMedia =
+              ext.endsWith('.mp4') || ext.endsWith('.mov') || ext.endsWith('.avi');
+        });
       }
     } catch (e) {
-      debugPrint('Ошибка при выборе файла: $e');
+      debugPrint('Ошибка выбора файла: $e');
     }
   }
 
@@ -357,16 +568,12 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     showDialog(
       context: context,
       builder: (_) => QuickCanvasDialog(
-        onCanvasExported: (bytes) {
-          // ИСПРАВЛЕНИЕ: Добавлена проверка mounted, чтобы избежать краша при закрытии модалки до рендеринга
-          if (mounted) {
-            setState(() {
-              _attachedMediaBytes = bytes;
-              _attachedMediaName = 'quick_sketch_${DateTime.now().millisecondsSinceEpoch}.png';
-              _isVideoMedia = false;
-            });
-          }
-        },
+        onCanvasExported: (bytes) => setState(() {
+          _attachedMediaBytes = bytes;
+          _attachedMediaName =
+              'quick_sketch_${DateTime.now().millisecondsSinceEpoch}.png';
+          _isVideoMedia = false;
+        }),
       ),
     );
   }
@@ -480,6 +687,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
             if (idx != -1) messages[idx] = serverMsg;
             messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
           });
+          _scrollToBottom();
         }
       } else if (mediaBytes != null) {
         await Future.delayed(const Duration(milliseconds: 300));
@@ -487,7 +695,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       }
     }
 
-    await _chatSyncService.saveChatHistory(_chatHistory);
+    await _chatSyncService.saveChatHistory(widget.currentUser.id, _chatHistory);
     _msgFocusNode.requestFocus();
   }
 
@@ -548,7 +756,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     final targetId = _selectedTargetUser.id;
 
     setState(() => _chatHistory[targetId]?.removeWhere((m) => m.id == message.id));
-    await _chatSyncService.saveChatHistory(_chatHistory);
+    await _chatSyncService.saveChatHistory(widget.currentUser.id, _chatHistory);
 
     if (targetId != _xyphraBot.id && targetId != _savedMessagesUser.id) {
       await _chatSyncService.deleteMessage(
@@ -622,10 +830,14 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
-    final chatUserIds =
-        _chatHistory.entries.where((e) => e.value.isNotEmpty).map((e) => e.key).toSet();
+    
+    final allChatUserIds = {
+      ..._chatHistory.entries.where((e) => e.value.isNotEmpty).map((e) => e.key),
+      ..._activeChatUserIds,
+    };
+
     final chatUsers = _allGlobalUsers
-        .where((u) => chatUserIds.contains(u.id) && u.id != widget.currentUser.id)
+        .where((u) => allChatUserIds.contains(u.id) && u.id != widget.currentUser.id)
         .toList()
       ..sort((a, b) => _getLastMessageTime(b.id).compareTo(_getLastMessageTime(a.id)));
 
@@ -645,6 +857,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
           padding: const EdgeInsets.all(8),
           child: Row(
             children: [
+              // 1. DOCK ПАНЕЛЬ СЛЕВА
               if (!isMobile || !_isMobileChatOpen)
                 Container(
                   width: 64,
@@ -657,23 +870,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: Colors.deepPurpleAccent.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.deepPurpleAccent.withValues(alpha: 0.25),
-                                blurRadius: 10,
-                                spreadRadius: 1)
-                          ],
-                        ),
-                        child: const Icon(Icons.bolt_rounded,
-                            color: Colors.deepPurpleAccent, size: 24),
-                      ),
+                      const XyphraLogoIcon(size: 44, showOuterGlow: true),
                       const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           child: Divider(color: Colors.white10, height: 1)),
@@ -717,6 +914,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   ),
                 ),
 
+              // 2. БОКОВАЯ ПАНЕЛЬ С ДРУЗЬЯМИ И ЧАТАМИ
               if (!isMobile || !_isMobileChatOpen)
                 Expanded(
                   flex: isMobile ? 1 : 0,
@@ -766,14 +964,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                 isSelected: _currentTab == ActiveWorkspaceTab.chat &&
                                     _selectedTargetUser.id == _savedMessagesUser.id,
                                 onTap: () {
-                                  _chatSubscription?.cancel();
-                                  _chatSubscription = null;
-                                  setState(() {
-                                    _selectedTargetUser = _savedMessagesUser;
-                                    _currentTab = ActiveWorkspaceTab.chat;
-                                    if (isMobile) _isMobileChatOpen = true;
-                                  });
-                                  _saveLastActiveUserId(_savedMessagesUser.id);
+                                  if (isMobile) _isMobileChatOpen = true;
+                                  _selectUserAndSwitchChat(_savedMessagesUser);
                                 },
                                 child: ListTile(
                                   dense: true,
@@ -796,24 +988,14 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                 isSelected: _currentTab == ActiveWorkspaceTab.chat &&
                                     _selectedTargetUser.id == _xyphraBot.id,
                                 onTap: () {
-                                  _chatSubscription?.cancel();
-                                  _chatSubscription = null;
-                                  setState(() {
-                                    _selectedTargetUser = _xyphraBot;
-                                    _currentTab = ActiveWorkspaceTab.chat;
-                                    if (isMobile) _isMobileChatOpen = true;
-                                  });
-                                  _saveLastActiveUserId(_xyphraBot.id);
+                                  if (isMobile) _isMobileChatOpen = true;
+                                  _selectUserAndSwitchChat(_xyphraBot);
                                 },
                                 child: ListTile(
                                   dense: true,
                                   leading: Stack(
                                     children: [
-                                      const CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: Colors.deepPurpleAccent,
-                                          child: Icon(Icons.smart_toy_rounded,
-                                              color: Colors.white, size: 18)),
+                                      const XyphraLogoIcon(size: 32, showOuterGlow: false),
                                       Positioned(
                                           right: 0,
                                           bottom: 0,
@@ -848,77 +1030,82 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                   u.id != _xyphraBot.id &&
                                   u.id != _savedMessagesUser.id &&
                                   u.id != widget.currentUser.id))
-                                _buildAnimatedChatTile(
-                                  isSelected: _currentTab == ActiveWorkspaceTab.chat &&
-                                      _selectedTargetUser.id == user.id,
-                                  onTap: () {
-                                    _chatSubscription?.cancel();
-                                    _chatSubscription = null;
-                                    setState(() {
-                                      _selectedTargetUser = user;
-                                      _currentTab = ActiveWorkspaceTab.chat;
-                                      if (isMobile) _isMobileChatOpen = true;
-                                    });
-                                    _saveLastActiveUserId(user.id);
-                                    _subscribeToSelectedChat();
-                                  },
-                                  child: ListTile(
-                                    dense: true,
-                                    leading: Stack(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: Colors.deepPurple,
-                                          backgroundImage: _getUserAvatarProvider(user),
-                                          child: _getUserAvatarProvider(user) == null
-                                              ? Text(
-                                                  user.displayName.isNotEmpty
-                                                      ? user.displayName[0].toUpperCase()
-                                                      : 'U',
+                                Builder(
+                                  builder: (context) {
+                                    final unreadCount = _unreadCountsMap[user.id] ?? 0;
+                                    return _buildAnimatedChatTile(
+                                      isSelected: _currentTab == ActiveWorkspaceTab.chat &&
+                                          _selectedTargetUser.id == user.id,
+                                      onTap: () {
+                                        if (isMobile) _isMobileChatOpen = true;
+                                        _selectUserAndSwitchChat(user);
+                                      },
+                                      child: ListTile(
+                                        dense: true,
+                                        leading: Stack(
+                                          children: [
+                                            _buildUserAvatarWidget(user, radius: 16),
+                                            Positioned(
+                                              right: 0,
+                                              bottom: 0,
+                                              child: _buildStatusIndicatorForUser(user, size: 10),
+                                            ),
+                                          ],
+                                        ),
+                                        title: Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                user.displayName,
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.bold),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (user.badges.isNotEmpty) ...[
+                                              const SizedBox(width: 5),
+                                              BadgeManager.buildBadgesList(user.badges)
+                                            ],
+                                          ],
+                                        ),
+                                        subtitle: Text(
+                                          '@${user.username}',
+                                          style: const TextStyle(
+                                              color: Colors.white38, fontSize: 11),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: unreadCount > 0
+                                            ? Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                    horizontal: 7, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.deepPurpleAccent,
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Text(
+                                                  unreadCount > 99
+                                                      ? '99+'
+                                                      : '$unreadCount',
                                                   style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.bold),
-                                                )
-                                              : null,
-                                        ),
-                                        Positioned(
-                                          right: 0,
-                                          bottom: 0,
-                                          child: _buildStatusIndicatorForUser(user, size: 10),
-                                        ),
-                                      ],
-                                    ),
-                                    title: Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            user.displayName,
-                                            style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.bold),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (user.badges.isNotEmpty) ...[
-                                          const SizedBox(width: 5),
-                                          BadgeManager.buildBadgesList(user.badges)
-                                        ],
-                                      ],
-                                    ),
-                                    subtitle: Text(
-                                      '@${user.username}',
-                                      style: const TextStyle(
-                                          color: Colors.white38, fontSize: 11),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                    );
+                                  },
                                 ),
                             ],
                           ),
                         ),
 
+                        // Профиль текущего пользователя внизу левого сайдбара
                         Builder(
                           builder: (context) {
                             final cleanTag =
@@ -927,8 +1114,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                     !widget.currentUser.username.contains('_'))
                                 ? '@${widget.currentUser.username}_$cleanTag'
                                 : '@${widget.currentUser.username}';
-                            final avatar =
-                                _getUserAvatarProvider(widget.currentUser);
 
                             return Padding(
                               padding: const EdgeInsets.all(8.0),
@@ -960,25 +1145,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                     onTap: _openSettingsModal,
                                     leading: Stack(
                                       children: [
-                                        CircleAvatar(
-                                          radius: 18,
-                                          backgroundColor: Colors.deepPurple,
-                                          backgroundImage: avatar,
-                                          child: avatar == null
-                                              ? Text(
-                                                  widget.currentUser.displayName
-                                                          .isNotEmpty
-                                                      ? widget.currentUser
-                                                          .displayName[0]
-                                                          .toUpperCase()
-                                                      : 'U',
-                                                  style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.bold),
-                                                )
-                                              : null,
-                                        ),
+                                        _buildUserAvatarWidget(widget.currentUser, radius: 18),
                                         Positioned(
                                           right: 0,
                                           bottom: 0,
@@ -1026,6 +1193,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   ),
                 ),
 
+              // 3. ОСНОВНОЙ ЭКРАН (ЧАТ / ПОИСК ДРУЗЕЙ)
               if (!isMobile || _isMobileChatOpen)
                 Expanded(
                   child: Container(
@@ -1125,6 +1293,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   ),
                 ),
 
+              // 4. БОКОВАЯ ПАНЕЛЬ ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ (Только десктоп)
               if (!isMobile)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
@@ -1166,6 +1335,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     );
   }
 
+  /// Вкладка добавления в друзья
   Widget _buildAddFriendTab() {
     final isMobile = MediaQuery.of(context).size.width < 768;
     final displayList = _searchResultsUsers.isEmpty && _searchQuery.isEmpty
@@ -1230,7 +1400,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                     itemBuilder: (context, index) {
                       final user = displayList[index];
                       final isMe = user.id == widget.currentUser.id;
-                      final avatar = _getUserAvatarProvider(user);
                       final cleanTag = user.tag.replaceAll('#', '');
                       final userTagText = (cleanTag.isNotEmpty &&
                               !user.username.contains('_'))
@@ -1252,22 +1421,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                           children: [
                             Stack(
                               children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: Colors.deepPurpleAccent,
-                                  backgroundImage: avatar,
-                                  child: avatar == null
-                                      ? Text(
-                                          user.displayName.isNotEmpty
-                                              ? user.displayName[0]
-                                                  .toUpperCase()
-                                              : 'U',
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold),
-                                        )
-                                      : null,
-                                ),
+                                _buildUserAvatarWidget(user, radius: 20),
                                 Positioned(
                                   right: 0,
                                   bottom: 0,
@@ -1325,14 +1479,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                     size: 20),
                                 tooltip: 'Написать',
                                 onPressed: () {
-                                  _chatSubscription?.cancel();
-                                  _chatSubscription = null;
-                                  setState(() {
-                                    _selectedTargetUser = user;
-                                    _currentTab = ActiveWorkspaceTab.chat;
-                                    if (isMobile) _isMobileChatOpen = true;
-                                  });
-                                  _subscribeToSelectedChat();
+                                  if (isMobile) _isMobileChatOpen = true;
+                                  _selectUserAndSwitchChat(user);
                                 },
                               ),
                               const SizedBox(width: 6),
@@ -1365,6 +1513,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     );
   }
 
+  /// Вкладка чата
   Widget _buildChatTab(List<ChatMessage> currentMessages) {
     final isMobile = MediaQuery.of(context).size.width < 768;
     final sortedMessages = List<ChatMessage>.from(currentMessages)
@@ -1423,6 +1572,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
             },
           ),
         ),
+
+        // Панель ввода сообщений
         CallbackShortcuts(
           bindings: {
             const SingleActivator(LogicalKeyboardKey.arrowUp): _editLastMessage
@@ -1592,6 +1743,9 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   }
 }
 
+/// ============================================================================
+/// ДИАЛОГ QUICK CANVAS (БЫСТРЫЙ ЭСКИЗ / РИСОВАЛКА)
+/// ============================================================================
 class QuickCanvasDialog extends StatefulWidget {
   final Function(Uint8List imageBytes) onCanvasExported;
 
@@ -1632,7 +1786,7 @@ class _QuickCanvasDialogState extends State<QuickCanvasDialog> {
       widget.onCanvasExported(imageBytes);
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      debugPrint('Ошибка при экспорте скетча: $e');
+      debugPrint('Ошибка экспорта скетча: $e');
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -1743,6 +1897,9 @@ class CanvasPainter extends CustomPainter {
   bool shouldRepaint(covariant CanvasPainter oldDelegate) => true;
 }
 
+/// ============================================================================
+/// ДИАЛОГ НАСТРОЕК ПОЛЬЗОВАТЕЛЯ
+/// ============================================================================
 class SettingsDialog extends StatefulWidget {
   final UserProfile user;
   final VoidCallback onProfileUpdated;
@@ -1791,17 +1948,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        if (file.bytes != null) {
-          // ИСПРАВЛЕНИЕ: Проверка mounted для предотвращения утечки/краша
-          if (mounted) {
-            setState(() {
-              _newAvatarBytes = file.bytes;
-            });
-          }
+        if (file.bytes != null && mounted) {
+          setState(() {
+            _newAvatarBytes = file.bytes;
+          });
         }
       }
     } catch (e) {
-      debugPrint('Ошибка при выборе аватара: $e');
+      debugPrint('Ошибка выбора аватара: $e');
     }
   }
 

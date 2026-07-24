@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 
@@ -20,12 +21,12 @@ class ChatHeader extends StatelessWidget {
     if (targetUser.avatarBytes != null && targetUser.avatarBytes!.isNotEmpty) {
       return MemoryImage(targetUser.avatarBytes!);
     }
-    
+
     final url = targetUser.avatarUrl.trim();
     if (url.isEmpty) return null;
 
-    // 2. Локальный файл с устройства
-    if (url.startsWith('/') || url.contains(':\\') || url.startsWith('file://')) {
+    // 2. Локальный файл (проверка kIsWeb для избежания краша в браузере)
+    if (!kIsWeb && (url.startsWith('/') || url.contains(':\\') || url.startsWith('file://'))) {
       final cleanPath = url.replaceFirst('file://', '');
       final file = File(cleanPath);
       if (file.existsSync()) {
@@ -153,57 +154,61 @@ class ChatHeader extends StatelessWidget {
           const SizedBox(width: 10),
 
           // ИМЯ, БЕЙДЖИ И СТАТУС СЕТИ
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    targetUser.displayName.isNotEmpty
-                        ? targetUser.displayName
-                        : targetUser.username,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        targetUser.displayName.isNotEmpty
+                            ? targetUser.displayName
+                            : targetUser.username,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
-                  ),
-                  if (_isOwner) ...[
-                    const SizedBox(width: 6),
-                    _buildOwnerBadge(),
-                  ] else if (_isBot) ...[
-                    const SizedBox(width: 6),
-                    _buildBotBadge(),
+                    if (_isOwner) ...[
+                      const SizedBox(width: 6),
+                      _buildOwnerBadge(),
+                    ] else if (_isBot) ...[
+                      const SizedBox(width: 6),
+                      _buildBotBadge(),
+                    ],
                   ],
-                ],
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isOnline ? Colors.greenAccent : Colors.grey,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isOnline ? Colors.greenAccent : Colors.grey,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    statusText,
-                    style: TextStyle(
-                      color: isOnline ? Colors.greenAccent : Colors.white38,
-                      fontSize: 11,
+                    const SizedBox(width: 4),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        color: isOnline ? Colors.greenAccent : Colors.white38,
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
-
-          const Spacer(),
 
           // КНОПКИ ДЕЙСТВИЙ
           IconButton(

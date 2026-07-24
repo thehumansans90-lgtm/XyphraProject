@@ -6,10 +6,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 
 class ChatSyncService {
-  static const String _messagesCacheKey = 'xyphra_chat_messages_cache';
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// 1. Подписка на ВСЕ сообщения для фонового получения уведомлений и счетчиков
+  /// Динамический ключ кэша для ИЗОЛЯЦИИ сообщений разных пользователей
+  String _getCacheKey(String userId) => 'xyphra_chat_messages_cache_$userId';
+
+  /// 1. Подписка на ВСЕ сообщения для фонового получения и уведомлений
   StreamSubscription<List<ChatMessage>> subscribeToAllIncomingMessages(
     String currentUserId,
     void Function(List<ChatMessage>) onData,
@@ -113,25 +115,49 @@ class ChatSyncService {
     }
   }
 
-  /// 4. Подписка на количество непрочитанных сообщений от конкретного пользователя
-  Stream<int> streamUnreadCount({
-    required String currentUserId,
-    required String targetUserId,
-  }) {
+  /// 4. РЕАКТИВНЫЙ Поток карт всех непрочитанных сообщений по пользователям
+  Stream<Map<String, int>> streamUnreadCountsMap(String currentUserId) {
     return _supabase
         .from('messages')
         .stream(primaryKey: ['id'])
         .map((data) {
-          return data.where((msg) {
+          final Map<String, int> counts = {};
+
+          for (var msg in data) {
             final sender = msg['sender_id']?.toString();
             final receiver = msg['receiver_id']?.toString();
             final isRead = msg['is_read'] ?? false;
-            return sender == targetUserId && receiver == currentUserId && !isRead;
-          }).length;
+
+            if (receiver == currentUserId && !isRead && sender != null) {
+              counts[sender] = (counts[sender] ?? 0) + 1;
+            }
+          }
+
+          return counts;
         });
   }
 
-  /// 5. Получение ID пользователей, с которыми есть активные переписки
+  /// 5. РЕАКТИВНЫЙ ПОТОК активных диалогов (Сразу добавляет собеседника в список)
+  Stream<Set<String>> streamActiveChatUserIds(String currentUserId) {
+    return _supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .map((data) {
+          final Set<String> activeIds = {};
+
+          for (var row in data) {
+            final s = row['sender_id']?.toString();
+            final r = row['receiver_id']?.toString();
+
+            if (s != null && s != currentUserId) activeIds.add(s);
+            if (r != null && r != currentUserId) activeIds.add(r);
+          }
+
+          return activeIds;
+        });
+  }
+
+  /// РЕЗЕРВНЫЙ Разовый запрос активных чатов
   Future<Set<String>> fetchActiveChatUserIds(String currentUserId) async {
     try {
       final response = await _supabase
@@ -170,7 +196,7 @@ class ChatSyncService {
     );
   }
 
-  /// 7. Отправка сообщения на сервер Supabase с загрузкой медиафайла
+  /// 7. Отправка сообщения на сервер Supabase
   Future<ChatMessage?> sendMessageToServer({
     required String senderId,
     required String receiverId,
@@ -226,7 +252,11 @@ class ChatSyncService {
         isRead: false,
       );
 
-      await _appendMessageToCache(chatId: receiverId, message: createdMessage);
+      await _appendMessageToCache(
+        currentUserId: senderId,
+        chatId: receiverId,
+        message: createdMessage,
+      );
 
       return createdMessage;
     } catch (e) {
@@ -243,7 +273,11 @@ class ChatSyncService {
   }) async {
     try {
       if (messageId.startsWith('temp_')) {
-        await removeMessageFromCache(chatId: targetUserId, messageId: messageId);
+        await removeMessageFromCache(
+          currentUserId: currentUserId,
+          chatId: targetUserId,
+          messageId: messageId,
+        );
         return true;
       }
 
@@ -268,11 +302,19 @@ class ChatSyncService {
           .eq('id', messageId)
           .eq('sender_id', currentUserId);
 
-      await removeMessageFromCache(chatId: targetUserId, messageId: messageId);
+      await removeMessageFromCache(
+        currentUserId: currentUserId,
+        chatId: targetUserId,
+        messageId: messageId,
+      );
       return true;
     } catch (e) {
       debugPrint('Ошибка при удалении сообщения: $e');
-      await removeMessageFromCache(chatId: targetUserId, messageId: messageId);
+      await removeMessageFromCache(
+        currentUserId: currentUserId,
+        chatId: targetUserId,
+        messageId: messageId,
+      );
       return false;
     }
   }
@@ -298,6 +340,7 @@ class ChatSyncService {
           .eq('sender_id', currentUserId);
 
       await _updateMessageInCache(
+        currentUserId: currentUserId,
         chatId: targetUserId,
         messageId: messageId,
         newText: newText,
@@ -310,7 +353,7 @@ class ChatSyncService {
     }
   }
 
-  /// 10. Стрим статуса пользователя (Online / Idle / Offline)
+  /// 10. Стрим статуса пользователя
   Stream<UserStatus> subscribeToUserDetailedStatus(String userId) {
     return _supabase
         .from('profiles')
@@ -338,8 +381,8 @@ class ChatSyncService {
         });
   }
 
-  /// 11. Локальный кэш
-  Future<void> saveChatHistory(Map<String, List<ChatMessage>> history) async {
+  /// 11. Персональный локальный кэш
+  Future<void> saveChatHistory(String userId, Map<String, List<ChatMessage>> history) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final Map<String, dynamic> rawMap = {};
@@ -348,16 +391,16 @@ class ChatSyncService {
         rawMap[chatId] = messages.map((m) => m.toJson()).toList();
       });
 
-      await prefs.setString(_messagesCacheKey, jsonEncode(rawMap));
+      await prefs.setString(_getCacheKey(userId), jsonEncode(rawMap));
     } catch (e) {
       debugPrint('Ошибка сохранения кэша: $e');
     }
   }
 
-  Future<Map<String, List<ChatMessage>>> loadChatHistory() async {
+  Future<Map<String, List<ChatMessage>>> loadChatHistory(String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final rawData = prefs.getString(_messagesCacheKey);
+      final rawData = prefs.getString(_getCacheKey(userId));
       if (rawData == null || rawData.isEmpty) return {};
 
       final Map<String, dynamic> decoded = jsonDecode(rawData);
@@ -382,17 +425,18 @@ class ChatSyncService {
   }
 
   Future<void> _appendMessageToCache({
+    required String currentUserId,
     required String chatId,
     required ChatMessage message,
   }) async {
     try {
-      final history = await loadChatHistory();
+      final history = await loadChatHistory(currentUserId);
       final chatList = history[chatId] ?? [];
 
       if (!chatList.any((m) => m.id == message.id)) {
         chatList.add(message);
         history[chatId] = chatList;
-        await saveChatHistory(history);
+        await saveChatHistory(currentUserId, history);
       }
     } catch (e) {
       debugPrint('Ошибка добавления сообщения в кэш: $e');
@@ -400,12 +444,13 @@ class ChatSyncService {
   }
 
   Future<void> _updateMessageInCache({
+    required String currentUserId,
     required String chatId,
     required String messageId,
     required String newText,
   }) async {
     try {
-      final history = await loadChatHistory();
+      final history = await loadChatHistory(currentUserId);
       if (history.containsKey(chatId)) {
         final list = history[chatId]!;
         final index = list.indexWhere((m) => m.id == messageId);
@@ -421,7 +466,7 @@ class ChatSyncService {
             isEdited: true,
             isRead: oldMsg.isRead,
           );
-          await saveChatHistory(history);
+          await saveChatHistory(currentUserId, history);
         }
       }
     } catch (e) {
@@ -430,22 +475,23 @@ class ChatSyncService {
   }
 
   Future<void> removeMessageFromCache({
+    required String currentUserId,
     required String chatId,
     required String messageId,
   }) async {
     try {
-      final history = await loadChatHistory();
+      final history = await loadChatHistory(currentUserId);
       if (history.containsKey(chatId)) {
         history[chatId]!.removeWhere((m) => m.id == messageId);
-        await saveChatHistory(history);
+        await saveChatHistory(currentUserId, history);
       }
     } catch (e) {
       debugPrint('Ошибка удаления сообщения из кэша: $e');
     }
   }
 
-  Future<void> clearCache() async {
+  Future<void> clearCache(String userId) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_messagesCacheKey);
+    await prefs.remove(_getCacheKey(userId));
   }
 }

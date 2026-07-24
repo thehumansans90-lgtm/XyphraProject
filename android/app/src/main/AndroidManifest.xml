@@ -7,7 +7,7 @@
     <application
         android:label="Xyphra"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true"> <!-- 2. Разрешает HTTP запросы (если сервер без SSL) -->
         
         <activity
