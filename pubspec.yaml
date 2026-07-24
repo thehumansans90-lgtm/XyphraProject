@@ -10,8 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  foundation:
-
+  
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.5.5
   connectivity_plus: ^7.3.0
