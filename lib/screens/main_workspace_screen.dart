@@ -1,21 +1,21 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:file_picker/file_picker.dart' as file_picker_lib;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/auth_service.dart';
+import 'package:file_picker/file_picker.dart' as file_picker_lib;
+import 'dart:io';
 import 'package:my_app/screens/auth_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/badge_manager.dart';
 import 'package:my_app/widgets/status_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_model.dart';
-import '../services/auth_service.dart';
 import '../services/chat_sync_service.dart';
-import '../utils/badge_manager.dart';
-import '../widgets/animated_message.dart';
 import '../widgets/chat_header.dart';
 import '../widgets/chat_welcome_card.dart';
+import '../widgets/animated_message.dart';
 import '../widgets/profile_sidebar.dart';
 
 enum ActiveWorkspaceTab { chat, addFriend }
@@ -47,8 +47,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   final TextEditingController _searchFriendController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
 
-  late final UserProfile _savedMessagesUser;
-  late final UserProfile _xyphraBot;
+  late final UserProfile _savedMessagesUser, _xyphraBot;
   late UserProfile _selectedTargetUser;
 
   ChatMessage? _editingMessage;
@@ -82,8 +81,10 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     if (user.badges.any((b) => b == 'BOT' || b == 'SAVED')) return true;
     if (user.id == widget.currentUser.id) return widget.isConnected;
     if (!widget.isConnected || !user.isOnline) return false;
-    return user.lastSeen == null ||
-        DateTime.now().toUtc().difference(user.lastSeen!.toUtc()).inSeconds <= 120;
+    
+    // ИСПРАВЛЕНИЕ: Вынесено в отдельный if, чтобы null не приводил к true
+    if (user.lastSeen == null) return false; 
+    return DateTime.now().toUtc().difference(user.lastSeen!.toUtc()).inSeconds <= 120;
   }
 
   Widget _buildStatusIndicatorForUser(UserProfile user, {double size = 10}) =>
@@ -98,6 +99,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   void initState() {
     super.initState();
     _syncUserBadges(widget.currentUser);
+    AuthService.saveSession(widget.currentUser);
 
     _savedMessagesUser = UserProfile(
       id: 'saved_messages_${widget.currentUser.id}',
@@ -127,14 +129,10 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     _allGlobalUsers.addAll([widget.currentUser, _savedMessagesUser, _xyphraBot]);
     _selectedTargetUser = _xyphraBot;
 
-    // Инициализация фоновых процессов без блокировки UI
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      AuthService.saveSession(widget.currentUser);
-      _loadCachedMessages();
-      _loadGlobalUsersFromServer();
-      _subscribeToProfilesRealtime();
-      _subscribeToGlobalIncomingMessages();
-    });
+    _loadCachedMessages();
+    _loadGlobalUsersFromServer();
+    _subscribeToProfilesRealtime();
+    _subscribeToGlobalIncomingMessages();
   }
 
   void _subscribeToGlobalIncomingMessages() {
@@ -244,17 +242,20 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
         prefs.getString('last_active_user_id_${widget.currentUser.id}');
 
     if (!mounted) return;
+    
     setState(() {
       if (cached.isNotEmpty) {
         cached.forEach((k, list) => list.sort((a, b) => a.timestamp.compareTo(b.timestamp)));
         _chatHistory.addAll(cached);
-      } else {
+      }
+
+      // ИСПРАВЛЕНИЕ: Вынесено из блока else, чтобы бот всегда имел чат, даже если кэш других чатов не пуст.
+      if (!_chatHistory.containsKey(_xyphraBot.id) || _chatHistory[_xyphraBot.id]!.isEmpty) {
         _chatHistory[_xyphraBot.id] = [
           ChatMessage(
             id: 'welcome_msg',
             senderId: _xyphraBot.id,
-            text:
-                'Welcome To Xyphra! 🚀\nИсследуй возможности и находи друзей по их никнеймам.',
+            text: 'Welcome To Xyphra! 🚀\nИсследуй возможности и находи друзей по их никнеймам.',
             timestamp: DateTime.now().toUtc(),
           )
         ];
@@ -334,17 +335,18 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
-
+        
         if (bytes == null) return;
-
+        
         final ext = file.name.toLowerCase();
 
-        setState(() {
-          _attachedMediaBytes = bytes;
-          _attachedMediaName = file.name;
-          _isVideoMedia =
-              ext.endsWith('.mp4') || ext.endsWith('.mov') || ext.endsWith('.avi');
-        });
+        if (mounted) {
+          setState(() {
+            _attachedMediaBytes = bytes;
+            _attachedMediaName = file.name;
+            _isVideoMedia = ext.endsWith('.mp4') || ext.endsWith('.mov') || ext.endsWith('.avi');
+          });
+        }
       }
     } catch (e) {
       debugPrint('Ошибка при выборе файла: $e');
@@ -355,12 +357,16 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     showDialog(
       context: context,
       builder: (_) => QuickCanvasDialog(
-        onCanvasExported: (bytes) => setState(() {
-          _attachedMediaBytes = bytes;
-          _attachedMediaName =
-              'quick_sketch_${DateTime.now().millisecondsSinceEpoch}.png';
-          _isVideoMedia = false;
-        }),
+        onCanvasExported: (bytes) {
+          // ИСПРАВЛЕНИЕ: Добавлена проверка mounted, чтобы избежать краша при закрытии модалки до рендеринга
+          if (mounted) {
+            setState(() {
+              _attachedMediaBytes = bytes;
+              _attachedMediaName = 'quick_sketch_${DateTime.now().millisecondsSinceEpoch}.png';
+              _isVideoMedia = false;
+            });
+          }
+        },
       ),
     );
   }
@@ -639,7 +645,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
           padding: const EdgeInsets.all(8),
           child: Row(
             children: [
-              // 1. DOCK ПАНЕЛЬ СЛЕВА
               if (!isMobile || !_isMobileChatOpen)
                 Container(
                   width: 64,
@@ -712,7 +717,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   ),
                 ),
 
-              // 2. БОКОВАЯ ПАНЕЛЬ С ДРУЗЬЯМИ И ЧАТАМИ
               if (!isMobile || !_isMobileChatOpen)
                 Expanded(
                   flex: isMobile ? 1 : 0,
@@ -915,7 +919,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                           ),
                         ),
 
-                        // Профиль текущего пользователя внизу левого сайдбара
                         Builder(
                           builder: (context) {
                             final cleanTag =
@@ -1023,7 +1026,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   ),
                 ),
 
-              // 3. ОСНОВНОЙ ЭКРАН (ЧАТ / ПОИСК ДРУЗЕЙ)
               if (!isMobile || _isMobileChatOpen)
                 Expanded(
                   child: Container(
@@ -1035,7 +1037,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                     ),
                     child: Column(
                       children: [
-                        // Кнопка возврата к списку чатов для мобильных устройств
                         if (isMobile)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -1124,7 +1125,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   ),
                 ),
 
-              // 4. БОКОВАЯ ПАНЕЛЬ ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ (Только для десктопов)
               if (!isMobile)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
@@ -1166,7 +1166,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     );
   }
 
-  /// Вкладка добавления в друзья
   Widget _buildAddFriendTab() {
     final isMobile = MediaQuery.of(context).size.width < 768;
     final displayList = _searchResultsUsers.isEmpty && _searchQuery.isEmpty
@@ -1366,7 +1365,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     );
   }
 
-  /// Вкладка чата
   Widget _buildChatTab(List<ChatMessage> currentMessages) {
     final isMobile = MediaQuery.of(context).size.width < 768;
     final sortedMessages = List<ChatMessage>.from(currentMessages)
@@ -1425,8 +1423,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
             },
           ),
         ),
-
-        // Панель ввода сообщений
         CallbackShortcuts(
           bindings: {
             const SingleActivator(LogicalKeyboardKey.arrowUp): _editLastMessage
@@ -1596,9 +1592,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   }
 }
 
-/// ============================================================================
-/// ДИАЛОГ УНИКАЛЬНОЙ ФИЧИ: QUICK CANVAS (БЫСТРЫЙ ЭСКИЗ / РИСОВАЛКА ДЛЯ ЧАТА)
-/// ============================================================================
 class QuickCanvasDialog extends StatefulWidget {
   final Function(Uint8List imageBytes) onCanvasExported;
 
@@ -1612,17 +1605,14 @@ class _QuickCanvasDialogState extends State<QuickCanvasDialog> {
   final List<Offset?> _points = [];
   bool _isExporting = false;
 
-  /// Генерация PNG-картинки из нарисованных точек
   Future<Uint8List> _generateImageBytes() async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     const size = Size(400, 400);
 
-    // Заливаем фон темным цветом
     final bgPaint = Paint()..color = const Color(0xFF1A1D28);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
-    // Рисуем линии
     final painter = CanvasPainter(_points);
     painter.paint(canvas, size);
 
@@ -1753,9 +1743,6 @@ class CanvasPainter extends CustomPainter {
   bool shouldRepaint(covariant CanvasPainter oldDelegate) => true;
 }
 
-/// ============================================================================
-/// ДИАЛОГ НАСТРОЕК ПОЛЬЗОВАТЕЛЯ
-/// ============================================================================
 class SettingsDialog extends StatefulWidget {
   final UserProfile user;
   final VoidCallback onProfileUpdated;
@@ -1804,10 +1791,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        if (file.bytes != null && mounted) {
-          setState(() {
-            _newAvatarBytes = file.bytes;
-          });
+        if (file.bytes != null) {
+          // ИСПРАВЛЕНИЕ: Проверка mounted для предотвращения утечки/краша
+          if (mounted) {
+            setState(() {
+              _newAvatarBytes = file.bytes;
+            });
+          }
         }
       }
     } catch (e) {
@@ -1847,8 +1837,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              Navigator.pop(dialogContext); // Закрываем диалог подтверждения
-              Navigator.pop(context);       // Закрываем диалог настроек
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
               widget.onLogout();
             },
             child: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -1877,8 +1867,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              Navigator.pop(dialogContext); // Закрываем диалог подтверждения
-              Navigator.pop(context);       // Закрываем диалог настроек
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
               widget.onDeleteAccount();
             },
             child: const Text('Delete Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
