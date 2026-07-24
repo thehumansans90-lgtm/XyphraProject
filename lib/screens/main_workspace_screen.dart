@@ -834,196 +834,188 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                           color: Colors.white38, fontSize: 11)),
                                 ),
                               ),
-                            const Divider(color: Colors.white10, height: 16),
+                              const Divider(color: Colors.white10, height: 16),
 
-                            ...chatUsers
-                                .where((u) =>
-                                    u.id != _xyphraBot.id &&
-                                    u.id != _savedMessagesUser.id &&
-                                    u.id != widget.currentUser.id)
-                                .map((user) {
-                              final isSelected =
-                                  _currentTab == ActiveWorkspaceTab.chat &&
-                                      _selectedTargetUser.id == user.id;
-                              final avatar = _getUserAvatarProvider(user);
-
-                              return _buildAnimatedChatTile(
-                                isSelected: isSelected,
-                                onTap: () {
-                                  _chatSubscription?.cancel();
-                                  _chatSubscription = null;
-                                  setState(() {
-                                    _selectedTargetUser = user;
-                                    _currentTab = ActiveWorkspaceTab.chat;
-                                    if (isMobile) _isMobileChatOpen = true;
-                                  });
-                                  _saveLastActiveUserId(user.id);
-                                  _subscribeToSelectedChat();
-                                },
-                                child: ListTile(
-                                  dense: true,
-                                  leading: Stack(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 16,
-                                        backgroundColor: Colors.deepPurple,
-                                        backgroundImage: avatar,
-                                        child: avatar == null
-                                            ? Text(
-                                                user.displayName.isNotEmpty
-                                                    ? user.displayName[0]
-                                                        .toUpperCase()
-                                                    : 'U',
-                                                style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold),
-                                              )
-                                            : null,
-                                      ),
-                                      Positioned(
-                                        right: 0,
-                                        bottom: 0,
-                                        child: _buildStatusIndicatorForUser(user,
-                                            size: 10),
-                                      ),
-                                    ],
-                                  ),
-                                  title: Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          user.displayName,
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold),
-                                          overflow: TextOverflow.ellipsis,
+                              for (final user in chatUsers.where((u) =>
+                                  u.id != _xyphraBot.id &&
+                                  u.id != _savedMessagesUser.id &&
+                                  u.id != widget.currentUser.id))
+                                _buildAnimatedChatTile(
+                                  isSelected: _currentTab == ActiveWorkspaceTab.chat &&
+                                      _selectedTargetUser.id == user.id,
+                                  onTap: () {
+                                    _chatSubscription?.cancel();
+                                    _chatSubscription = null;
+                                    setState(() {
+                                      _selectedTargetUser = user;
+                                      _currentTab = ActiveWorkspaceTab.chat;
+                                      if (isMobile) _isMobileChatOpen = true;
+                                    });
+                                    _saveLastActiveUserId(user.id);
+                                    _subscribeToSelectedChat();
+                                  },
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Stack(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 16,
+                                          backgroundColor: Colors.deepPurple,
+                                          backgroundImage: _getUserAvatarProvider(user),
+                                          child: _getUserAvatarProvider(user) == null
+                                              ? Text(
+                                                  user.displayName.isNotEmpty
+                                                      ? user.displayName[0].toUpperCase()
+                                                      : 'U',
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.bold),
+                                                )
+                                              : null,
                                         ),
-                                      ),
-                                      if (user.badges.isNotEmpty) ...[
-                                        const SizedBox(width: 5),
-                                        BadgeManager.buildBadgesList(user.badges)
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: _buildStatusIndicatorForUser(user, size: 10),
+                                        ),
                                       ],
-                                    ],
-                                  ),
-                                  subtitle: Text(
-                                    '@${user.username}',
-                                    style: const TextStyle(
-                                        color: Colors.white38, fontSize: 11),
-                                    overflow: TextOverflow.ellipsis,
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            user.displayName,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (user.badges.isNotEmpty) ...[
+                                          const SizedBox(width: 5),
+                                          BadgeManager.buildBadgesList(user.badges)
+                                        ],
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      '@${user.username}',
+                                      style: const TextStyle(
+                                          color: Colors.white38, fontSize: 11),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ),
-                              );
-                            }),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
 
-                      // Профиль текущего пользователя внизу левого сайдбара
-                      Builder(
-                        builder: (context) {
-                          final cleanTag =
-                              widget.currentUser.tag.replaceAll('#', '');
-                          final formattedUsername = (cleanTag.isNotEmpty &&
-                                  !widget.currentUser.username.contains('_'))
-                              ? '@${widget.currentUser.username}_$cleanTag'
-                              : '@${widget.currentUser.username}';
-                          final avatar =
-                              _getUserAvatarProvider(widget.currentUser);
+                        // Профиль текущего пользователя внизу левого сайдбара
+                        Builder(
+                          builder: (context) {
+                            final cleanTag =
+                                widget.currentUser.tag.replaceAll('#', '');
+                            final formattedUsername = (cleanTag.isNotEmpty &&
+                                    !widget.currentUser.username.contains('_'))
+                                ? '@${widget.currentUser.username}_$cleanTag'
+                                : '@${widget.currentUser.username}';
+                            final avatar =
+                                _getUserAvatarProvider(widget.currentUser);
 
-                          return Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Material(
-                              color: const Color(0xFF1A1D28),
-                              borderRadius: BorderRadius.circular(14),
-                              clipBehavior: Clip.antiAlias,
-                              child: Tooltip(
-                                message:
-                                    'Ник: ${widget.currentUser.displayName}\nЮзернейм: $formattedUsername\nСтатус: ${_checkIsUserOnline(widget.currentUser) ? "В сети" : "Не в сети"}',
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF16161D),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.deepPurpleAccent
-                                        .withValues(alpha: 0.3),
+                            return Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Material(
+                                color: const Color(0xFF1A1D28),
+                                borderRadius: BorderRadius.circular(14),
+                                clipBehavior: Clip.antiAlias,
+                                child: Tooltip(
+                                  message:
+                                      'Ник: ${widget.currentUser.displayName}\nЮзернейм: $formattedUsername\nСтатус: ${_checkIsUserOnline(widget.currentUser) ? "В сети" : "Не в сети"}',
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF16161D),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.deepPurpleAccent
+                                          .withValues(alpha: 0.3),
+                                    ),
                                   ),
-                                ),
-                                textStyle: const TextStyle(
-                                    color: Colors.white, fontSize: 12),
-                                child: ListTile(
-                                  dense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 2),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14)),
-                                  onTap: _openSettingsModal,
-                                  leading: Stack(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 18,
-                                        backgroundColor: Colors.deepPurple,
-                                        backgroundImage: avatar,
-                                        child: avatar == null
-                                            ? Text(
-                                                widget.currentUser.displayName
-                                                        .isNotEmpty
-                                                    ? widget.currentUser
-                                                        .displayName[0]
-                                                        .toUpperCase()
-                                                    : 'U',
-                                                style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold),
-                                              )
-                                            : null,
-                                      ),
-                                      Positioned(
-                                        right: 0,
-                                        bottom: 0,
-                                        child: _buildStatusIndicatorForUser(
-                                            widget.currentUser,
-                                            size: 10),
-                                      ),
-                                    ],
-                                  ),
-                                  title: Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          widget.currentUser.displayName,
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold),
-                                          overflow: TextOverflow.ellipsis,
+                                  textStyle: const TextStyle(
+                                      color: Colors.white, fontSize: 12),
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 2),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14)),
+                                    onTap: _openSettingsModal,
+                                    leading: Stack(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 18,
+                                          backgroundColor: Colors.deepPurple,
+                                          backgroundImage: avatar,
+                                          child: avatar == null
+                                              ? Text(
+                                                  widget.currentUser.displayName
+                                                          .isNotEmpty
+                                                      ? widget.currentUser
+                                                          .displayName[0]
+                                                          .toUpperCase()
+                                                      : 'U',
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.bold),
+                                                )
+                                              : null,
                                         ),
-                                      ),
-                                      if (widget.currentUser.badges.isNotEmpty) ...[
-                                        const SizedBox(width: 5),
-                                        BadgeManager.buildBadgesList(
-                                            widget.currentUser.badges)
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: _buildStatusIndicatorForUser(
+                                              widget.currentUser,
+                                              size: 10),
+                                        ),
                                       ],
-                                    ],
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            widget.currentUser.displayName,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (widget.currentUser.badges.isNotEmpty) ...[
+                                          const SizedBox(width: 5),
+                                          BadgeManager.buildBadgesList(
+                                              widget.currentUser.badges)
+                                        ],
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      formattedUsername,
+                                      style: const TextStyle(
+                                          color: Colors.white38, fontSize: 11),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: const Icon(Icons.settings_rounded,
+                                        color: Colors.white38, size: 20),
                                   ),
-                                  subtitle: Text(
-                                    formattedUsername,
-                                    style: const TextStyle(
-                                        color: Colors.white38, fontSize: 11),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: const Icon(Icons.settings_rounded,
-                                      color: Colors.white38, size: 20),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -1372,6 +1364,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
 
   /// Вкладка чата
   Widget _buildChatTab(List<ChatMessage> currentMessages) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
     final sortedMessages = List<ChatMessage>.from(currentMessages)
       ..sort((a, b) => a.timestamp.toUtc().compareTo(b.timestamp.toUtc()));
 
@@ -1380,8 +1373,13 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
         ChatHeader(
           targetUser: _selectedTargetUser,
           isProfileOpen: _isProfileOpen,
-          onToggleProfile: () =>
-              setState(() => _isProfileOpen = !_isProfileOpen),
+          onToggleProfile: () {
+            if (isMobile) {
+              _showMobileProfileBottomSheet();
+            } else {
+              setState(() => _isProfileOpen = !_isProfileOpen);
+            }
+          },
         ),
         const Divider(color: Colors.white10, height: 1),
         Expanded(
