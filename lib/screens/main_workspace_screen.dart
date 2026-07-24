@@ -1,21 +1,21 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:file_picker/file_picker.dart' as file_picker_lib;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/auth_service.dart';
-import 'package:file_picker/file_picker.dart' as file_picker_lib;
-import 'dart:io';
 import 'package:my_app/screens/auth_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../utils/badge_manager.dart';
 import 'package:my_app/widgets/status_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/user_model.dart';
+import '../services/auth_service.dart';
 import '../services/chat_sync_service.dart';
+import '../utils/badge_manager.dart';
+import '../widgets/animated_message.dart';
 import '../widgets/chat_header.dart';
 import '../widgets/chat_welcome_card.dart';
-import '../widgets/animated_message.dart';
 import '../widgets/profile_sidebar.dart';
 
 enum ActiveWorkspaceTab { chat, addFriend }
@@ -47,7 +47,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   final TextEditingController _searchFriendController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
 
-  late final UserProfile _savedMessagesUser, _xyphraBot;
+  late final UserProfile _savedMessagesUser;
+  late final UserProfile _xyphraBot;
   late UserProfile _selectedTargetUser;
 
   ChatMessage? _editingMessage;
@@ -97,7 +98,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   void initState() {
     super.initState();
     _syncUserBadges(widget.currentUser);
-    AuthService.saveSession(widget.currentUser);
 
     _savedMessagesUser = UserProfile(
       id: 'saved_messages_${widget.currentUser.id}',
@@ -127,10 +127,14 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     _allGlobalUsers.addAll([widget.currentUser, _savedMessagesUser, _xyphraBot]);
     _selectedTargetUser = _xyphraBot;
 
-    _loadCachedMessages();
-    _loadGlobalUsersFromServer();
-    _subscribeToProfilesRealtime();
-    _subscribeToGlobalIncomingMessages();
+    // Инициализация фоновых процессов без блокировки UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthService.saveSession(widget.currentUser);
+      _loadCachedMessages();
+      _loadGlobalUsersFromServer();
+      _subscribeToProfilesRealtime();
+      _subscribeToGlobalIncomingMessages();
+    });
   }
 
   void _subscribeToGlobalIncomingMessages() {
@@ -330,9 +334,9 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
-        
+
         if (bytes == null) return;
-        
+
         final ext = file.name.toLowerCase();
 
         setState(() {
@@ -1800,7 +1804,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        if (file.bytes != null) {
+        if (file.bytes != null && mounted) {
           setState(() {
             _newAvatarBytes = file.bytes;
           });
