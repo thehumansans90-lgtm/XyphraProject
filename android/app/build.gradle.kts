@@ -10,6 +10,9 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // 1. Включаем desugaring для поддержки Java 8+ API в плагинах (например, flutter_local_notifications)
+        isCoreLibraryDesugaringEnabled = true
+
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -23,6 +26,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // 2. Включаем MultiDex на случай превышения лимита методов
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -42,4 +48,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// 3. Добавляем необходимую зависимость desugaring в самый конец файла
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
