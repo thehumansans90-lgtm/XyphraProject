@@ -20,6 +20,145 @@ import '../widgets/profile_sidebar.dart';
 
 enum ActiveWorkspaceTab { chat, addFriend }
 
+/// ============================================================================
+/// КАСТОМНЫЙ ВИДЖЕТ КРУГЛОЙ НЕОНОВОЙ ИКОНКИ (XYPHRA LOGO)
+/// Используется в Доке, чатах, аватаре бота и профиле.
+/// ============================================================================
+class XyphraLogoIcon extends StatelessWidget {
+  final double size;
+  final bool showOuterGlow;
+
+  const XyphraLogoIcon({
+    super.key,
+    this.size = 40.0,
+    this.showOuterGlow = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: showOuterGlow
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF7C4DFF).withValues(alpha: 0.35),
+                  blurRadius: size * 0.25,
+                  spreadRadius: 1,
+                )
+              ]
+            : null,
+      ),
+      child: CustomPaint(
+        size: Size(size, size),
+        painter: _XyphraLogoPainter(),
+      ),
+    );
+  }
+}
+
+class _XyphraLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width * 0.44;
+
+    // 1. Градиентная сфера фона
+    final bgGradient = RadialGradient(
+      colors: const [
+        Color(0xFF1F1A3A),
+        Color(0xFF0F0B1E),
+        Color(0xFF05030A),
+      ],
+      stops: const [0.0, 0.7, 1.0],
+    );
+
+    final bgPaint = Paint()
+      ..shader = bgGradient.createShader(
+        Rect.fromCircle(center: center, radius: radius),
+      );
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // 2. Внешний неоновый ободок (Glow & Stroke)
+    final strokeGlowPaint = Paint()
+      ..shader = const SweepGradient(
+        colors: [
+          Color(0xFF7C4DFF),
+          Color(0xFFE040FB),
+          Color(0xFF00E5FF),
+          Color(0xFF7C4DFF),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.028
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.025);
+
+    final strokePaint = Paint()
+      ..shader = const SweepGradient(
+        colors: [
+          Color(0xFFB388FF),
+          Color(0xFFEA80FC),
+          Color(0xFF80D8FF),
+          Color(0xFFB388FF),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.018;
+
+    canvas.drawCircle(center, radius, strokeGlowPaint);
+    canvas.drawCircle(center, radius, strokePaint);
+
+    // 3. Логотип внутри сферы
+    final w = size.width;
+    final h = size.height;
+
+    final paintGlow = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF7C4DFF), Color(0xFFE040FB)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.075
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.05);
+
+    final paintLine = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFFD1C4E9), Color(0xFFEA80FC), Colors.white],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.065
+      ..strokeCap = StrokeCap.round;
+
+    final pathLeft = Path()
+      ..moveTo(w * 0.32, h * 0.32)
+      ..lineTo(w * 0.68, h * 0.68);
+
+    final pathBolt = Path()
+      ..moveTo(w * 0.68, h * 0.32)
+      ..lineTo(w * 0.48, h * 0.52)
+      ..lineTo(w * 0.56, h * 0.52)
+      ..lineTo(w * 0.32, h * 0.68);
+
+    canvas.drawPath(pathLeft, paintGlow);
+    canvas.drawPath(pathBolt, paintGlow);
+    canvas.drawPath(pathLeft, paintLine);
+    canvas.drawPath(pathBolt, paintLine);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// ============================================================================
+/// ГЛАВНЫЙ ЭКРАН РАБОЧЕЙ ОБЛАСТИ
+/// ============================================================================
 class MainWorkspaceScreen extends StatefulWidget {
   final UserProfile currentUser;
   final bool isConnected;
@@ -116,7 +255,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       username: 'xyphra_official',
       tag: '0001',
       displayName: 'Xyphra Bot',
-      bio: 'Официальный ассистент и гид по платформе Xyphra.',
+      bio: 'Официальный умный ассистент и гид по нейросети Xyphra.',
       avatarUrl: '',
       bannerColor: '0xFF673AB7',
       joinedDate: '21 июля 2026 г.',
@@ -127,7 +266,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     _allGlobalUsers.addAll([widget.currentUser, _savedMessagesUser, _xyphraBot]);
     _selectedTargetUser = _xyphraBot;
 
-    // Инициализация фоновых процессов без блокировки UI
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AuthService.saveSession(widget.currentUser);
       _loadCachedMessages();
@@ -254,7 +392,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
             id: 'welcome_msg',
             senderId: _xyphraBot.id,
             text:
-                'Welcome To Xyphra! 🚀\nИсследуй возможности и находи друзей по их никнеймам.',
+                'Добро пожаловать в Xyphra! 🚀\nИсследуй возможности экосистемы, общайся и находи друзей.',
             timestamp: DateTime.now().toUtc(),
           )
         ];
@@ -323,6 +461,29 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     return null;
   }
 
+  Widget _buildUserAvatarWidget(UserProfile user, {double radius = 16}) {
+    if (user.id == _xyphraBot.id) {
+      return XyphraLogoIcon(size: radius * 2, showOuterGlow: false);
+    }
+
+    final avatarProvider = _getUserAvatarProvider(user);
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.deepPurple,
+      backgroundImage: avatarProvider,
+      child: avatarProvider == null
+          ? Text(
+              user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : 'U',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: radius * 0.8,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          : null,
+    );
+  }
+
   Future<void> _pickMediaFromGallery() async {
     try {
       final result = await file_picker_lib.FilePicker.pickFiles(
@@ -347,7 +508,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Ошибка при выборе файла: $e');
+      debugPrint('Ошибка выбора файла: $e');
     }
   }
 
@@ -639,7 +800,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
           padding: const EdgeInsets.all(8),
           child: Row(
             children: [
-              // 1. DOCK ПАНЕЛЬ СЛЕВА
+              // 1. DOCK ПАНЕЛЬ СЛЕВА (С НЕОНОВОЙ ИКОНКОЙ XYPHRA)
               if (!isMobile || !_isMobileChatOpen)
                 Container(
                   width: 64,
@@ -652,23 +813,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: Colors.deepPurpleAccent.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.deepPurpleAccent.withValues(alpha: 0.25),
-                                blurRadius: 10,
-                                spreadRadius: 1)
-                          ],
-                        ),
-                        child: const Icon(Icons.bolt_rounded,
-                            color: Colors.deepPurpleAccent, size: 24),
-                      ),
+                      const XyphraLogoIcon(size: 44, showOuterGlow: true),
                       const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           child: Divider(color: Colors.white10, height: 1)),
@@ -805,11 +950,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                   dense: true,
                                   leading: Stack(
                                     children: [
-                                      const CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: Colors.deepPurpleAccent,
-                                          child: Icon(Icons.smart_toy_rounded,
-                                              color: Colors.white, size: 18)),
+                                      const XyphraLogoIcon(size: 32, showOuterGlow: false),
                                       Positioned(
                                           right: 0,
                                           bottom: 0,
@@ -862,22 +1003,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                     dense: true,
                                     leading: Stack(
                                       children: [
-                                        CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: Colors.deepPurple,
-                                          backgroundImage: _getUserAvatarProvider(user),
-                                          child: _getUserAvatarProvider(user) == null
-                                              ? Text(
-                                                  user.displayName.isNotEmpty
-                                                      ? user.displayName[0].toUpperCase()
-                                                      : 'U',
-                                                  style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.bold),
-                                                )
-                                              : null,
-                                        ),
+                                        _buildUserAvatarWidget(user, radius: 16),
                                         Positioned(
                                           right: 0,
                                           bottom: 0,
@@ -924,8 +1050,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                     !widget.currentUser.username.contains('_'))
                                 ? '@${widget.currentUser.username}_$cleanTag'
                                 : '@${widget.currentUser.username}';
-                            final avatar =
-                                _getUserAvatarProvider(widget.currentUser);
 
                             return Padding(
                               padding: const EdgeInsets.all(8.0),
@@ -957,25 +1081,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                     onTap: _openSettingsModal,
                                     leading: Stack(
                                       children: [
-                                        CircleAvatar(
-                                          radius: 18,
-                                          backgroundColor: Colors.deepPurple,
-                                          backgroundImage: avatar,
-                                          child: avatar == null
-                                              ? Text(
-                                                  widget.currentUser.displayName
-                                                          .isNotEmpty
-                                                      ? widget.currentUser
-                                                          .displayName[0]
-                                                          .toUpperCase()
-                                                      : 'U',
-                                                  style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.bold),
-                                                )
-                                              : null,
-                                        ),
+                                        _buildUserAvatarWidget(widget.currentUser, radius: 18),
                                         Positioned(
                                           right: 0,
                                           bottom: 0,
@@ -1035,7 +1141,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                     ),
                     child: Column(
                       children: [
-                        // Кнопка возврата к списку чатов для мобильных устройств
                         if (isMobile)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -1124,7 +1229,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   ),
                 ),
 
-              // 4. БОКОВАЯ ПАНЕЛЬ ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ (Только для десктопов)
+              // 4. БОКОВАЯ ПАНЕЛЬ ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ (Только десктоп)
               if (!isMobile)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
@@ -1231,7 +1336,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                     itemBuilder: (context, index) {
                       final user = displayList[index];
                       final isMe = user.id == widget.currentUser.id;
-                      final avatar = _getUserAvatarProvider(user);
                       final cleanTag = user.tag.replaceAll('#', '');
                       final userTagText = (cleanTag.isNotEmpty &&
                               !user.username.contains('_'))
@@ -1253,22 +1357,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                           children: [
                             Stack(
                               children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: Colors.deepPurpleAccent,
-                                  backgroundImage: avatar,
-                                  child: avatar == null
-                                      ? Text(
-                                          user.displayName.isNotEmpty
-                                              ? user.displayName[0]
-                                                  .toUpperCase()
-                                              : 'U',
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold),
-                                        )
-                                      : null,
-                                ),
+                                _buildUserAvatarWidget(user, radius: 20),
                                 Positioned(
                                   right: 0,
                                   bottom: 0,
@@ -1597,7 +1686,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
 }
 
 /// ============================================================================
-/// ДИАЛОГ УНИКАЛЬНОЙ ФИЧИ: QUICK CANVAS (БЫСТРЫЙ ЭСКИЗ / РИСОВАЛКА ДЛЯ ЧАТА)
+/// ДИАЛОГ QUICK CANVAS (БЫСТРЫЙ ЭСКИЗ / РИСОВАЛКА)
 /// ============================================================================
 class QuickCanvasDialog extends StatefulWidget {
   final Function(Uint8List imageBytes) onCanvasExported;
@@ -1612,17 +1701,14 @@ class _QuickCanvasDialogState extends State<QuickCanvasDialog> {
   final List<Offset?> _points = [];
   bool _isExporting = false;
 
-  /// Генерация PNG-картинки из нарисованных точек
   Future<Uint8List> _generateImageBytes() async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     const size = Size(400, 400);
 
-    // Заливаем фон темным цветом
     final bgPaint = Paint()..color = const Color(0xFF1A1D28);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
-    // Рисуем линии
     final painter = CanvasPainter(_points);
     painter.paint(canvas, size);
 
@@ -1642,7 +1728,7 @@ class _QuickCanvasDialogState extends State<QuickCanvasDialog> {
       widget.onCanvasExported(imageBytes);
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      debugPrint('Ошибка при экспорте скетча: $e');
+      debugPrint('Ошибка экспорта скетча: $e');
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -1811,7 +1897,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         }
       }
     } catch (e) {
-      debugPrint('Ошибка при выборе аватара: $e');
+      debugPrint('Ошибка выбора аватара: $e');
     }
   }
 
@@ -1847,8 +1933,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              Navigator.pop(dialogContext); // Закрываем диалог подтверждения
-              Navigator.pop(context);       // Закрываем диалог настроек
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
               widget.onLogout();
             },
             child: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -1877,8 +1963,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              Navigator.pop(dialogContext); // Закрываем диалог подтверждения
-              Navigator.pop(context);       // Закрываем диалог настроек
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
               widget.onDeleteAccount();
             },
             child: const Text('Delete Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
