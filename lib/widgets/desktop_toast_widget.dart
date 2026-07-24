@@ -43,7 +43,9 @@ class _DesktopToastWidgetState extends State<DesktopToastWidget>
 
     Future.delayed(const Duration(milliseconds: 4500), () {
       if (mounted) {
-        _controller.reverse().then((_) => widget.onDismiss());
+        _controller.reverse().then((_) {
+          if (mounted) widget.onDismiss();
+        });
       }
     });
   }
@@ -93,7 +95,7 @@ class _DesktopToastWidgetState extends State<DesktopToastWidget>
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.min, // <-- Исправлено здесь
                   children: [
                     Text(
                       widget.userName,

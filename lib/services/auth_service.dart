@@ -26,7 +26,6 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
 
     user.isOnline = true;
-
     _applyBadges(user);
 
     if (user.avatarBytes != null && user.avatarBytes!.isNotEmpty) {
@@ -148,6 +147,38 @@ class AuthService {
       await logout();
       return null;
     }
+  }
+
+  /// Получение профилей только по списку конкретных ID (для списка переписок)
+  static Stream<List<UserProfile>> streamProfilesByIds(List<String> userIds) {
+    if (userIds.isEmpty) {
+      return Stream.value([]);
+    }
+
+    return _supabase.from('profiles').stream(primaryKey: ['id']).map((list) {
+      return list
+          .where((json) => userIds.contains(json['id']?.toString()))
+          .map((json) {
+            final badgesList = json['badges'] != null ? List<String>.from(json['badges']) : <String>[];
+            final user = UserProfile(
+              id: json['id'] ?? '',
+              username: json['username'] ?? '',
+              tag: json['tag'] ?? '',
+              displayName: json['display_name'] ?? '',
+              bio: json['bio'] ?? '',
+              avatarUrl: json['avatar_url'] ?? '',
+              bannerColor: json['banner_color'] ?? '0xFF9C27B0',
+              joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
+              badges: badgesList,
+              isOnline: json['is_online'] ?? false,
+            );
+
+            _applyBadges(user);
+
+            return user;
+          })
+          .toList();
+    });
   }
 
   static Stream<List<UserProfile>> streamAllProfiles() {

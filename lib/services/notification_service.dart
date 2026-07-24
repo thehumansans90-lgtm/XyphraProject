@@ -8,21 +8,30 @@ class SystemNotificationService {
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
-  /// Инициализация сервиса (вызываем в main.dart)
+  /// Инициализация сервиса
   static Future<void> init() async {
     if (kIsWeb) return;
 
     if (Platform.isAndroid || Platform.isIOS) {
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosSettings = DarwinInitializationSettings();
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
 
       const initSettings = InitializationSettings(
         android: androidSettings,
         iOS: iosSettings,
       );
 
-      // В новых версиях используется именованный параметр settings:
-      await _localNotifications.initialize(settings: initSettings);
+      // Именованный параметр settings: вместо позиционного
+      await _localNotifications.initialize(
+        settings: initSettings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          debugPrint('Клик по уведомлению: ${response.payload}');
+        },
+      );
 
       if (Platform.isAndroid) {
         final androidImplementation = _localNotifications
@@ -33,7 +42,7 @@ class SystemNotificationService {
     }
   }
 
-  /// Показ уведомления (мобилка -> верхняя шторка, ПК -> плашка сбоку)
+  /// Показ уведомления (мобилка -> верхняя шторка, ПК -> плашка)
   static Future<void> show({
     required BuildContext context,
     required String userName,
@@ -62,16 +71,23 @@ class SystemNotificationService {
       channelDescription: 'Уведомления о новых сообщениях',
       importance: Importance.max,
       priority: Priority.high,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
     );
 
-    const iosDetails = DarwinNotificationDetails();
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
 
     final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
 
-    // В новых версиях методы принимают именованные аргументы:
+    // Именованные параметры id:, title:, body:, notificationDetails:
     await _localNotifications.show(
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title: title,
@@ -86,7 +102,9 @@ class SystemNotificationService {
     required String message,
     required String avatarUrl,
   }) {
-    final overlay = Overlay.of(context);
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return;
+
     late OverlayEntry entry;
 
     entry = OverlayEntry(
@@ -97,7 +115,11 @@ class SystemNotificationService {
           userName: userName,
           message: message,
           avatarUrl: avatarUrl,
-          onDismiss: () => entry.remove(),
+          onDismiss: () {
+            if (entry.mounted) {
+              entry.remove();
+            }
+          },
         ),
       ),
     );

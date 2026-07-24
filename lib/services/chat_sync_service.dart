@@ -9,7 +9,7 @@ class ChatSyncService {
   static const String _messagesCacheKey = 'xyphra_chat_messages_cache';
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// 1. Главная подписка на ВСЕ входящие сообщения пользователя
+  /// 1. Подписка на ВСЕ сообщения для фонового получения уведомлений и счетчиков
   StreamSubscription<List<ChatMessage>> subscribeToAllIncomingMessages(
     String currentUserId,
     void Function(List<ChatMessage>) onData,
@@ -33,6 +33,7 @@ class ChatSyncService {
               timestamp: DateTime.parse(json['created_at']).toUtc(),
               isVideo: json['is_video'] ?? false,
               isEdited: json['is_edited'] ?? false,
+              isRead: json['is_read'] ?? false,
             );
           }).toList();
 
@@ -74,6 +75,7 @@ class ChatSyncService {
               timestamp: DateTime.parse(json['created_at']).toUtc(),
               isVideo: json['is_video'] ?? false,
               isEdited: json['is_edited'] ?? false,
+              isRead: json['is_read'] ?? false,
             );
           }).toList();
 
@@ -82,7 +84,7 @@ class ChatSyncService {
         });
   }
 
-  /// Удобный метод-алиас для подписки на чат
+  /// Удобный алиас для подписки
   StreamSubscription<List<ChatMessage>> subscribeToChat({
     required String currentUserId,
     required String targetUserId,
@@ -94,7 +96,64 @@ class ChatSyncService {
     ).listen(onData);
   }
 
-  /// 3. Универсальный метод отправки сообщения
+  /// 3. Пометить сообщения от собеседника как прочитанные
+  Future<void> markMessagesAsRead({
+    required String currentUserId,
+    required String targetUserId,
+  }) async {
+    try {
+      await _supabase
+          .from('messages')
+          .update({'is_read': true})
+          .eq('sender_id', targetUserId)
+          .eq('receiver_id', currentUserId)
+          .eq('is_read', false);
+    } catch (e) {
+      debugPrint('Ошибка обновления статуса прочтения: $e');
+    }
+  }
+
+  /// 4. Подписка на количество непрочитанных сообщений от конкретного пользователя
+  Stream<int> streamUnreadCount({
+    required String currentUserId,
+    required String targetUserId,
+  }) {
+    return _supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .map((data) {
+          return data.where((msg) {
+            final sender = msg['sender_id']?.toString();
+            final receiver = msg['receiver_id']?.toString();
+            final isRead = msg['is_read'] ?? false;
+            return sender == targetUserId && receiver == currentUserId && !isRead;
+          }).length;
+        });
+  }
+
+  /// 5. Получение ID пользователей, с которыми есть активные переписки
+  Future<Set<String>> fetchActiveChatUserIds(String currentUserId) async {
+    try {
+      final response = await _supabase
+          .from('messages')
+          .select('sender_id, receiver_id')
+          .or('sender_id.eq.$currentUserId,receiver_id.eq.$currentUserId');
+
+      final Set<String> activeIds = {};
+      for (var row in response as List) {
+        final s = row['sender_id']?.toString();
+        final r = row['receiver_id']?.toString();
+        if (s != null && s != currentUserId) activeIds.add(s);
+        if (r != null && r != currentUserId) activeIds.add(r);
+      }
+      return activeIds;
+    } catch (e) {
+      debugPrint('Ошибка загрузки активных диалогов: $e');
+      return {};
+    }
+  }
+
+  /// 6. Универсальный метод отправки сообщения
   Future<ChatMessage?> sendMessage({
     required String senderId,
     required String targetUserId,
@@ -111,7 +170,7 @@ class ChatSyncService {
     );
   }
 
-  /// 4. Отправка сообщения на сервер Supabase с загрузкой медиафайла
+  /// 7. Отправка сообщения на сервер Supabase с загрузкой медиафайла
   Future<ChatMessage?> sendMessageToServer({
     required String senderId,
     required String receiverId,
@@ -122,7 +181,6 @@ class ChatSyncService {
     try {
       String? mediaUrl;
 
-      // Загрузка медиа в Supabase Storage, если прикреплен файл
       if (mediaBytes != null && mediaBytes.isNotEmpty) {
         final ext = isVideo ? 'mp4' : 'png';
         final fileName = '${senderId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
@@ -151,6 +209,7 @@ class ChatSyncService {
             'media_url': mediaUrl,
             'is_video': isVideo,
             'is_edited': false,
+            'is_read': false,
             'created_at': nowUtc.toIso8601String(),
           })
           .select()
@@ -164,9 +223,9 @@ class ChatSyncService {
         mediaBytes: mediaBytes,
         isVideo: response['is_video'] ?? isVideo,
         isEdited: response['is_edited'] ?? false,
+        isRead: false,
       );
 
-      // Сохраняем отправленное сообщение в локальный кэш
       await _appendMessageToCache(chatId: receiverId, message: createdMessage);
 
       return createdMessage;
@@ -176,20 +235,18 @@ class ChatSyncService {
     }
   }
 
-  /// 5. Удаление сообщения из Supabase и локального кэша
+  /// 8. Удаление сообщения из Supabase и локального кэша
   Future<bool> deleteMessage({
     required String messageId,
     required String currentUserId,
     required String targetUserId,
   }) async {
     try {
-      // Если это временное сообщение (локальный фейк-ID), удаляем только из кэша
       if (messageId.startsWith('temp_')) {
         await removeMessageFromCache(chatId: targetUserId, messageId: messageId);
         return true;
       }
 
-      // Получаем URL медиафайла для очистки из Storage перед удалением
       final msgResponse = await _supabase
           .from('messages')
           .select('media_url')
@@ -205,24 +262,22 @@ class ChatSyncService {
         }
       }
 
-      // Удаление записи из БД
       await _supabase
           .from('messages')
           .delete()
           .eq('id', messageId)
           .eq('sender_id', currentUserId);
 
-      // Зачистка из локального кэша
       await removeMessageFromCache(chatId: targetUserId, messageId: messageId);
       return true;
     } catch (e) {
-      debugPrint('Ошибка при удалении сообщения с сервера: $e');
+      debugPrint('Ошибка при удалении сообщения: $e');
       await removeMessageFromCache(chatId: targetUserId, messageId: messageId);
       return false;
     }
   }
 
-  /// 6. Редактирование сообщения в Supabase и обновление кэша
+  /// 9. Редактирование сообщения в Supabase и обновление кэша
   Future<bool> updateMessage({
     required String messageId,
     required String currentUserId,
@@ -242,7 +297,6 @@ class ChatSyncService {
           .eq('id', messageId)
           .eq('sender_id', currentUserId);
 
-      // Обновляем текст и статус в локальном кэше
       await _updateMessageInCache(
         chatId: targetUserId,
         messageId: messageId,
@@ -251,12 +305,12 @@ class ChatSyncService {
 
       return true;
     } catch (e) {
-      debugPrint('Ошибка при редактировании сообщения на сервере: $e');
+      debugPrint('Ошибка при редактировании сообщения: $e');
       return false;
     }
   }
 
-  /// 7. Стрим статуса пользователя (Online / Idle / Offline)
+  /// 10. Стрим статуса пользователя (Online / Idle / Offline)
   Stream<UserStatus> subscribeToUserDetailedStatus(String userId) {
     return _supabase
         .from('profiles')
@@ -284,7 +338,7 @@ class ChatSyncService {
         });
   }
 
-  /// 8. Сохранение полной истории чатов в SharedPreferences
+  /// 11. Локальный кэш
   Future<void> saveChatHistory(Map<String, List<ChatMessage>> history) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -296,11 +350,10 @@ class ChatSyncService {
 
       await prefs.setString(_messagesCacheKey, jsonEncode(rawMap));
     } catch (e) {
-      debugPrint('Ошибка сохранения кэша чата: $e');
+      debugPrint('Ошибка сохранения кэша: $e');
     }
   }
 
-  /// 9. Загрузка всей истории из кэша
   Future<Map<String, List<ChatMessage>>> loadChatHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -323,12 +376,11 @@ class ChatSyncService {
 
       return result;
     } catch (e) {
-      debugPrint('Ошибка загрузки кэша чата: $e');
+      debugPrint('Ошибка загрузки кэша: $e');
       return {};
     }
   }
 
-  /// 10. Вспомогательное добавление одного сообщения в кэш
   Future<void> _appendMessageToCache({
     required String chatId,
     required ChatMessage message,
@@ -347,7 +399,6 @@ class ChatSyncService {
     }
   }
 
-  /// 11. Обновление отредактированного сообщения в кэше
   Future<void> _updateMessageInCache({
     required String chatId,
     required String messageId,
@@ -368,6 +419,7 @@ class ChatSyncService {
             mediaBytes: oldMsg.mediaBytes,
             isVideo: oldMsg.isVideo,
             isEdited: true,
+            isRead: oldMsg.isRead,
           );
           await saveChatHistory(history);
         }
@@ -377,7 +429,6 @@ class ChatSyncService {
     }
   }
 
-  /// 12. Удаление конкретного сообщения из локального кэша
   Future<void> removeMessageFromCache({
     required String chatId,
     required String messageId,
@@ -393,7 +444,6 @@ class ChatSyncService {
     }
   }
 
-  /// 13. Полная очистка локального кэша
   Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_messagesCacheKey);
