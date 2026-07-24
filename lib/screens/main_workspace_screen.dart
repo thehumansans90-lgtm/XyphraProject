@@ -40,6 +40,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   final ChatSyncService _chatSyncService = ChatSyncService();
   ActiveWorkspaceTab _currentTab = ActiveWorkspaceTab.chat;
   bool _isProfileOpen = true;
+  bool _isMobileChatOpen = false;
 
   final TextEditingController _msgController = TextEditingController();
   final FocusNode _msgFocusNode = FocusNode();
@@ -573,6 +574,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
     final chatUserIds =
         _chatHistory.entries.where((e) => e.value.isNotEmpty).map((e) => e.key).toSet();
     final chatUsers = _allGlobalUsers
@@ -587,195 +589,202 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
         child: Row(
           children: [
             // 1. DOCK ПАНЕЛЬ СЛЕВА
-            Container(
-              width: 64,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF13151E),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: Colors.deepPurpleAccent.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.deepPurpleAccent.withValues(alpha: 0.25),
-                            blurRadius: 10,
-                            spreadRadius: 1)
-                      ],
-                    ),
-                    child: const Icon(Icons.bolt_rounded,
-                        color: Colors.deepPurpleAccent, size: 24),
-                  ),
-                  const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Divider(color: Colors.white10, height: 1)),
-                  InkWell(
-                    onTap: () => setState(() => _currentTab = ActiveWorkspaceTab.chat),
-                    borderRadius: BorderRadius.circular(14),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
+            if (!isMobile || !_isMobileChatOpen)
+              Container(
+                width: 64,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF13151E),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: _currentTab == ActiveWorkspaceTab.chat
-                            ? const Color(0xFF1C1F2B)
-                            : Colors.transparent,
+                        color: Colors.deepPurpleAccent.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                            color: _currentTab == ActiveWorkspaceTab.chat
-                                ? Colors.deepPurpleAccent.withValues(alpha: 0.5)
-                                : Colors.transparent),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.deepPurpleAccent.withValues(alpha: 0.25),
+                              blurRadius: 10,
+                              spreadRadius: 1)
+                        ],
                       ),
-                      child: AnimatedScale(
-                        scale: _currentTab == ActiveWorkspaceTab.chat ? 1.15 : 1.0,
+                      child: const Icon(Icons.bolt_rounded,
+                          color: Colors.deepPurpleAccent, size: 24),
+                    ),
+                    const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Divider(color: Colors.white10, height: 1)),
+                    InkWell(
+                      onTap: () => setState(() => _currentTab = ActiveWorkspaceTab.chat),
+                      borderRadius: BorderRadius.circular(14),
+                      child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutBack,
-                        child: Icon(Icons.chat_bubble_rounded,
-                            color: _currentTab == ActiveWorkspaceTab.chat
-                                ? Colors.deepPurpleAccent
-                                : Colors.white38,
-                            size: 20),
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: _currentTab == ActiveWorkspaceTab.chat
+                              ? const Color(0xFF1C1F2B)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: _currentTab == ActiveWorkspaceTab.chat
+                                  ? Colors.deepPurpleAccent.withValues(alpha: 0.5)
+                                  : Colors.transparent),
+                        ),
+                        child: AnimatedScale(
+                          scale: _currentTab == ActiveWorkspaceTab.chat ? 1.15 : 1.0,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutBack,
+                          child: Icon(Icons.chat_bubble_rounded,
+                              color: _currentTab == ActiveWorkspaceTab.chat
+                                  ? Colors.deepPurpleAccent
+                                  : Colors.white38,
+                              size: 20),
+                        ),
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                      icon: const Icon(Icons.settings_rounded,
-                          color: Colors.white38, size: 22),
-                      onPressed: _openSettingsModal,
-                      tooltip: 'Настройки'),
-                  const SizedBox(height: 12),
-                ],
+                    const Spacer(),
+                    IconButton(
+                        icon: const Icon(Icons.settings_rounded,
+                            color: Colors.white38, size: 22),
+                        onPressed: _openSettingsModal,
+                        tooltip: 'Настройки'),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
-            ),
 
             // 2. БОКОВАЯ ПАНЕЛЬ С ДРУЗЬЯМИ И ЧАТАМИ
-            Container(
-              width: 250,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF13151E),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-              ),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(42),
-                        backgroundColor: _currentTab == ActiveWorkspaceTab.addFriend
-                            ? Colors.deepPurpleAccent
-                            : const Color(0xFF1C1F2B),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+            if (!isMobile || !_isMobileChatOpen)
+              Container(
+                width: isMobile ? MediaQuery.of(context).size.width - 96 : 250,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF13151E),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(42),
+                          backgroundColor: _currentTab == ActiveWorkspaceTab.addFriend
+                              ? Colors.deepPurpleAccent
+                              : const Color(0xFF1C1F2B),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _currentTab = ActiveWorkspaceTab.addFriend;
+                            if (isMobile) _isMobileChatOpen = true;
+                          });
+                          _performUserSearch(_searchFriendController.text);
+                        },
+                        icon: const Icon(Icons.person_add_rounded, size: 18),
+                        label: const Text('Add Friend',
+                            style:
+                                TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                       ),
-                      onPressed: () {
-                        setState(() => _currentTab = ActiveWorkspaceTab.addFriend);
-                        _performUserSearch(_searchFriendController.text);
-                      },
-                      icon: const Icon(Icons.person_add_rounded, size: 18),
-                      label: const Text('Add Friend',
-                          style:
-                              TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                  const Divider(color: Colors.white10, height: 1),
+                    const Divider(color: Colors.white10, height: 1),
 
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.all(8),
-                      children: [
-                        _buildAnimatedChatTile(
-                          isSelected: _currentTab == ActiveWorkspaceTab.chat &&
-                              _selectedTargetUser.id == _savedMessagesUser.id,
-                          onTap: () {
-                            _chatSubscription?.cancel();
-                            _chatSubscription = null;
-                            setState(() {
-                              _selectedTargetUser = _savedMessagesUser;
-                              _currentTab = ActiveWorkspaceTab.chat;
-                            });
-                            _saveLastActiveUserId(_savedMessagesUser.id);
-                          },
-                          child: ListTile(
-                            dense: true,
-                            leading: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.amber.shade700,
-                                child: const Icon(Icons.bookmark_rounded,
-                                    color: Colors.white, size: 18)),
-                            title: const Text('Избранное',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold)),
-                            subtitle: const Text('Файлы и заметки',
-                                style: TextStyle(color: Colors.white38, fontSize: 11),
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                        ),
-                        _buildAnimatedChatTile(
-                          isSelected: _currentTab == ActiveWorkspaceTab.chat &&
-                              _selectedTargetUser.id == _xyphraBot.id,
-                          onTap: () {
-                            _chatSubscription?.cancel();
-                            _chatSubscription = null;
-                            setState(() {
-                              _selectedTargetUser = _xyphraBot;
-                              _currentTab = ActiveWorkspaceTab.chat;
-                            });
-                            _saveLastActiveUserId(_xyphraBot.id);
-                          },
-                          child: ListTile(
-                            dense: true,
-                            leading: Stack(
-                              children: [
-                                const CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: Colors.deepPurpleAccent,
-                                    child: Icon(Icons.smart_toy_rounded,
-                                        color: Colors.white, size: 18)),
-                                Positioned(
-                                    right: 0,
-                                    bottom: 0,
-                                    child: _buildStatusIndicatorForUser(_xyphraBot,
-                                        size: 10)),
-                              ],
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.all(8),
+                        children: [
+                          _buildAnimatedChatTile(
+                            isSelected: _currentTab == ActiveWorkspaceTab.chat &&
+                                _selectedTargetUser.id == _savedMessagesUser.id,
+                            onTap: () {
+                              _chatSubscription?.cancel();
+                              _chatSubscription = null;
+                              setState(() {
+                                _selectedTargetUser = _savedMessagesUser;
+                                _currentTab = ActiveWorkspaceTab.chat;
+                                if (isMobile) _isMobileChatOpen = true;
+                              });
+                              _saveLastActiveUserId(_savedMessagesUser.id);
+                            },
+                            child: ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.amber.shade700,
+                                  child: const Icon(Icons.bookmark_rounded,
+                                      color: Colors.white, size: 18)),
+                              title: const Text('Избранное',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold)),
+                              subtitle: const Text('Файлы и заметки',
+                                  style: TextStyle(color: Colors.white38, fontSize: 11),
+                                  overflow: TextOverflow.ellipsis),
                             ),
-                            title: Row(
-                              children: [
-                                Flexible(
-                                    child: Text(_xyphraBot.displayName,
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold),
-                                        overflow: TextOverflow.ellipsis)),
-                                if (_xyphraBot.badges.isNotEmpty) ...[
-                                  const SizedBox(width: 5),
-                                  BadgeManager.buildBadgesList(_xyphraBot.badges)
+                          ),
+                          _buildAnimatedChatTile(
+                            isSelected: _currentTab == ActiveWorkspaceTab.chat &&
+                                _selectedTargetUser.id == _xyphraBot.id,
+                            onTap: () {
+                              _chatSubscription?.cancel();
+                              _chatSubscription = null;
+                              setState(() {
+                                _selectedTargetUser = _xyphraBot;
+                                _currentTab = ActiveWorkspaceTab.chat;
+                                if (isMobile) _isMobileChatOpen = true;
+                              });
+                              _saveLastActiveUserId(_xyphraBot.id);
+                            },
+                            child: ListTile(
+                              dense: true,
+                              leading: Stack(
+                                children: [
+                                  const CircleAvatar(
+                                      radius: 16,
+                                      backgroundColor: Colors.deepPurpleAccent,
+                                      child: Icon(Icons.smart_toy_rounded,
+                                          color: Colors.white, size: 18)),
+                                  Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: _buildStatusIndicatorForUser(_xyphraBot,
+                                          size: 10)),
                                 ],
-                              ],
+                              ),
+                              title: Row(
+                                children: [
+                                  Flexible(
+                                      child: Text(_xyphraBot.displayName,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold),
+                                          overflow: TextOverflow.ellipsis)),
+                                  if (_xyphraBot.badges.isNotEmpty) ...[
+                                    const SizedBox(width: 5),
+                                    BadgeManager.buildBadgesList(_xyphraBot.badges)
+                                  ],
+                                ],
+                              ),
+                              subtitle: Text(
+                                  '@${_xyphraBot.username}_${_xyphraBot.tag.replaceAll("#", "")}',
+                                  style: const TextStyle(
+                                      color: Colors.white38, fontSize: 11)),
                             ),
-                            subtitle: Text(
-                                '@${_xyphraBot.username}_${_xyphraBot.tag.replaceAll("#", "")}',
-                                style: const TextStyle(
-                                    color: Colors.white38, fontSize: 11)),
                           ),
-                        ),
                         const Divider(color: Colors.white10, height: 16),
 
                         ...chatUsers
@@ -797,6 +806,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                               setState(() {
                                 _selectedTargetUser = user;
                                 _currentTab = ActiveWorkspaceTab.chat;
+                                if (isMobile) _isMobileChatOpen = true;
                               });
                               _saveLastActiveUserId(user.id);
                               _subscribeToSelectedChat();
@@ -969,79 +979,117 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
             ),
 
             // 3. ОСНОВНОЙ ЭКРАН (ЧАТ / ПОИСК ДРУЗЕЙ)
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF13151E),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.05)),
-                ),
-                child: Column(
-                  children: [
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 200),
-                      child: !widget.isConnected
-                          ? Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 4, horizontal: 12),
-                              decoration: const BoxDecoration(
-                                color: Colors.amber,
-                                borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(20)),
+            if (!isMobile || _isMobileChatOpen)
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF13151E),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.05)),
+                  ),
+                  child: Column(
+                    children: [
+                      // Кнопка возврата к списку чатов для мобильных устройств
+                      if (isMobile)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 6),
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: Colors.white10),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                                    color: Colors.white70, size: 18),
+                                onPressed: () {
+                                  setState(() {
+                                    _isMobileChatOpen = false;
+                                  });
+                                },
                               ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.wifi_off_rounded,
-                                      color: Colors.black, size: 14),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Автономный режим. Изменения сохраняются локально.',
-                                    style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ],
+                              Text(
+                                _currentTab == ActiveWorkspaceTab.addFriend
+                                    ? 'Поиск друзей'
+                                    : _selectedTargetUser.displayName,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15),
                               ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        child: _currentTab == ActiveWorkspaceTab.addFriend
-                            ? _buildAddFriendTab()
-                            : _buildChatTab(
-                                _chatHistory[_selectedTargetUser.id] ?? []),
+                            ],
+                          ),
+                        ),
+
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        child: !widget.isConnected
+                            ? Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 4, horizontal: 12),
+                                decoration: const BoxDecoration(
+                                  color: Colors.amber,
+                                  borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20)),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.wifi_off_rounded,
+                                        color: Colors.black, size: 14),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Автономный режим. Изменения сохраняются локально.',
+                                      style: TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child: _currentTab == ActiveWorkspaceTab.addFriend
+                              ? _buildAddFriendTab()
+                              : _buildChatTab(
+                                  _chatHistory[_selectedTargetUser.id] ?? []),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
             // 4. БОКОВАЯ ПАНЕЛЬ ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOutCubic,
               width: (_isProfileOpen && _currentTab == ActiveWorkspaceTab.chat)
-                  ? 280
+                  ? (isMobile ? MediaQuery.of(context).size.width : 280)
                   : 0,
               margin: EdgeInsets.only(
                   left: (_isProfileOpen &&
-                          _currentTab == ActiveWorkspaceTab.chat)
+                          _currentTab == ActiveWorkspaceTab.chat &&
+                          !isMobile)
                       ? 8
                       : 0),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
                 child: OverflowBox(
                   minWidth: 0,
-                  maxWidth: 280,
+                  maxWidth: isMobile
+                      ? MediaQuery.of(context).size.width
+                      : 280,
                   alignment: Alignment.centerLeft,
                   child: AnimatedOpacity(
                     duration: const Duration(milliseconds: 200),
@@ -1068,6 +1116,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
 
   /// Вкладка добавления в друзья
   Widget _buildAddFriendTab() {
+    final isMobile = MediaQuery.of(context).size.width < 768;
     final displayList = _searchResultsUsers.isEmpty && _searchQuery.isEmpty
         ? _allGlobalUsers
             .where((u) => u.id != _savedMessagesUser.id)
@@ -1075,7 +1124,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
         : _searchResultsUsers;
 
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(isMobile ? 12.0 : 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1230,6 +1279,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                   setState(() {
                                     _selectedTargetUser = user;
                                     _currentTab = ActiveWorkspaceTab.chat;
+                                    if (isMobile) _isMobileChatOpen = true;
                                   });
                                   _subscribeToSelectedChat();
                                 },
