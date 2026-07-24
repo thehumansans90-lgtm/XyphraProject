@@ -50,7 +50,7 @@ flutter {
     source = "../.."
 }
 
-// 3. Добавляем необходимую зависимость desugaring в самый конец файла
+// 3. Используем актуальную версию 2.1.4, которую требует flutter_local_notifications
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
