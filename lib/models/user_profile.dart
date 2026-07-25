@@ -101,11 +101,31 @@ class UserProfile {
         'bannerColor': bannerColor,
         'joinedDate': joinedDate,
         'badges': badges,
-        'lastUsernameChange': lastUsernameChange?.toIso8601String(),
-        'lastSeen': lastSeen?.toIso8601String(),
+        'lastUsernameChange': lastUsernameChange?.toUtc().toIso8601String(),
+        'lastSeen': lastSeen?.toUtc().toIso8601String(),
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
+    // Вспомогательная функция для корректной конвертации даты в UTC
+    DateTime? parseDateTimeUtc(dynamic rawDate) {
+      if (rawDate == null) return null;
+
+      if (rawDate is String) {
+        final parsed = DateTime.tryParse(rawDate);
+        return parsed?.toUtc();
+      }
+
+      if (rawDate is int) {
+        // Защита от метки времени в секундах или миллисекундах
+        if (rawDate < 10000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(rawDate * 1000, isUtc: true);
+        }
+        return DateTime.fromMillisecondsSinceEpoch(rawDate, isUtc: true);
+      }
+
+      return null;
+    }
+
     return UserProfile(
       id: json['id'] as String? ?? '',
       username: json['username'] as String? ?? '',
@@ -122,12 +142,8 @@ class UserProfile {
       bannerColor: (json['bannerColor'] ?? json['banner_color']) as String? ?? '',
       joinedDate: (json['joinedDate'] ?? json['joined_date']) as String? ?? '',
       badges: (json['badges'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      lastUsernameChange: json['lastUsernameChange'] != null
-          ? DateTime.tryParse(json['lastUsernameChange'] as String)
-          : null,
-      lastSeen: (json['lastSeen'] ?? json['last_seen']) != null
-          ? DateTime.tryParse((json['lastSeen'] ?? json['last_seen']) as String)
-          : null,
+      lastUsernameChange: parseDateTimeUtc(json['lastUsernameChange'] ?? json['last_username_change']),
+      lastSeen: parseDateTimeUtc(json['lastSeen'] ?? json['last_seen']),
     );
   }
 }

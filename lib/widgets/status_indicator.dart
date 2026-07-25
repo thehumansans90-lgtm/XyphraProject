@@ -26,25 +26,40 @@ class StatusIndicator extends StatelessWidget {
 
   /// Вычисление текущего статуса на основе данных профиля
   UserOnlineState get currentState {
-    // 1. Проверка на ботов/системные аккаунты
+    // 1. Проверка на ботов / системные аккаунты / «Избранное»
     if (user.badges.contains('BOT') || user.badges.contains('SAVED')) {
       return UserOnlineState.bot;
     }
 
-    // 2. Если нет соединения с сервером или флаг isOnline явный false
+    // 2. Если у ТЕКУЩЕГО устройства нет интернета или у пользователя флаг isOnline = false
     if (!isConnected || !user.isOnline) {
       return UserOnlineState.offline;
     }
 
-    // 3. Проверка по lastSeen с приведением к UTC (избегаем ошибок часовых поясов)
+    // 3. Безопасная проверка по lastSeen с защитой от рассинхрона часов
     if (user.lastSeen != null) {
-      final lastSeenUtc = user.lastSeen!.toUtc();
+      // Принудительно гарантируем, что сравниваем в UTC
+      final lastSeenUtc = user.lastSeen!.isUtc 
+          ? user.lastSeen! 
+          : user.lastSeen!.toUtc();
       final nowUtc = DateTime.now().toUtc();
-      final difference = nowUtc.difference(lastSeenUtc).inSeconds;
+      
+      final differenceInSeconds = nowUtc.difference(lastSeenUtc).inSeconds;
 
-      // Если разница больше 2 минут, переводим в "Неактивен" или "Оффлайн"
-      if (difference > 120) {
+      // Защита от рассинхрона часов (если время сервера/другого устройства спешит)
+      // Если разница отрицательная — считаем, что пользователь только что был в сети
+      if (differenceInSeconds < 0) {
+        return UserOnlineState.online;
+      }
+
+      // Если человек не обновлял lastSeen от 2 до 5 минут — он "Away" (неактивен)
+      if (differenceInSeconds > 120 && differenceInSeconds <= 300) {
         return UserOnlineState.away;
+      }
+
+      // Если не обновлялся больше 5 минут — офлайн (даже если isOnline был true)
+      if (differenceInSeconds > 300) {
+        return UserOnlineState.offline;
       }
     }
 

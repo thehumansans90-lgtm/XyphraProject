@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,7 @@ enum UserStatus { online, idle, offline }
 class AuthService {
   static const String _currentUserKey = 'xyphra_current_user';
   static final SupabaseClient _supabase = Supabase.instance.client;
+  static Timer? _heartbeatTimer;
 
   static void _applyBadges(UserProfile user) {
     final updatedList = BadgeManager.getBadgesForUser(
@@ -21,6 +23,33 @@ class AuthService {
 
     user.badges.clear();
     user.badges.addAll(updatedList);
+  }
+
+  /// Парсит дату last_seen в UTC
+  static DateTime? _parseLastSeen(dynamic rawDate) {
+    if (rawDate == null) return null;
+    if (rawDate is String) {
+      return DateTime.tryParse(rawDate)?.toUtc();
+    }
+    return null;
+  }
+
+  /// Запуск фонового пинга на сервер каждые 30 секунд
+  static void startHeartbeatTimer(String userId) {
+    _heartbeatTimer?.cancel();
+    // Первый пинг сразу при запуске
+    updatePresenceStatus(userId, isOnline: true);
+
+    // Затем каждые 30 секунд
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      updatePresenceStatus(userId, isOnline: true);
+    });
+  }
+
+  /// Остановка фонового пинга
+  static void stopHeartbeatTimer() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
   }
 
   static Future<void> saveSession(UserProfile user) async {
@@ -59,6 +88,9 @@ class AuthService {
             updateData,
             onConflict: 'id',
           );
+      
+      // Запускаем постоянный пинг в сеть
+      startHeartbeatTimer(user.id);
       debugPrint('✅ Профиль успешно синхронизирован с Supabase!');
     } catch (e) {
       debugPrint('❌ Ошибка отправки в Supabase profiles: $e');
@@ -131,6 +163,7 @@ class AuthService {
           localUser.avatarUrl = serverProfile['avatar_url'] ?? localUser.avatarUrl;
           localUser.bannerColor = serverProfile['banner_color'] ?? localUser.bannerColor;
           localUser.isOnline = true;
+          localUser.lastSeen = _parseLastSeen(serverProfile['last_seen']);
 
           if (serverProfile['badges'] != null) {
             localUser.badges.clear();
@@ -143,6 +176,9 @@ class AuthService {
         }
       } catch (_) {}
 
+      // Запускаем таймер постоянного обновления
+      startHeartbeatTimer(localUser.id);
+
       return localUser;
     } catch (e) {
       await logout();
@@ -150,7 +186,7 @@ class AuthService {
     }
   }
 
-  /// Получение профилей только по списку конкретных ID (для списка переписок)
+  /// Получение профилей по списку ID
   static Stream<List<UserProfile>> streamProfilesByIds(List<String> userIds) {
     if (userIds.isEmpty) {
       return Stream.value([]);
@@ -172,6 +208,7 @@ class AuthService {
               joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
               badges: badgesList,
               isOnline: json['is_online'] ?? false,
+              lastSeen: _parseLastSeen(json['last_seen']), // FIXED
             );
 
             _applyBadges(user);
@@ -197,6 +234,7 @@ class AuthService {
           joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
           badges: badgesList,
           isOnline: json['is_online'] ?? false,
+          lastSeen: _parseLastSeen(json['last_seen']), // FIXED
         );
 
         _applyBadges(user);
@@ -206,15 +244,15 @@ class AuthService {
     });
   }
 
-  /// Полная очистка состояния и кэша при выходе
+  /// Очистка состояния и выключение таймера
   static Future<void> logout() async {
+    stopHeartbeatTimer();
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString(_currentUserKey);
     if (data != null && data.isNotEmpty) {
       try {
         final localUser = UserProfile.fromJson(jsonDecode(data));
         await updatePresenceStatus(localUser.id, isOnline: false);
-        // Очищаем кэш сообщений именно этого пользователя
         await ChatSyncService().clearCache(localUser.id);
       } catch (_) {}
     }
@@ -249,6 +287,7 @@ class AuthService {
           joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
           badges: badgesList,
           isOnline: json['is_online'] ?? false,
+          lastSeen: _parseLastSeen(json['last_seen']), // FIXED
         );
 
         _applyBadges(user);
@@ -298,6 +337,7 @@ class AuthService {
         joinedDate: response['joined_date'] ?? response['joinedDate'] ?? '',
         badges: badgesList,
         isOnline: response['is_online'] ?? false,
+        lastSeen: _parseLastSeen(response['last_seen']), // FIXED
       );
 
       _applyBadges(user);
