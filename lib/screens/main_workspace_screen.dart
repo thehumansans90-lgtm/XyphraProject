@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart' as file_picker_lib;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:my_app/screens/auth_screen.dart';
+import 'package:my_app/screens/auth_screen.dart' hide XyphraLogo;
 import 'package:my_app/widgets/status_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,144 +17,10 @@ import '../widgets/animated_message.dart';
 import '../widgets/chat_header.dart';
 import '../widgets/chat_welcome_card.dart';
 import '../widgets/profile_sidebar.dart';
+import '../widgets/xyphra_logo.dart'; // Подключен модуль логотипа
 
 enum ActiveWorkspaceTab { chat, addFriend }
 
-/// ============================================================================
-/// КАСТОМНЫЙ ВИДЖЕТ КРУГЛОЙ НЕОНОВОЙ ИКОНКИ (XYPHRA LOGO)
-/// ============================================================================
-class XyphraLogoIcon extends StatelessWidget {
-  final double size;
-  final bool showOuterGlow;
-
-  const XyphraLogoIcon({
-    super.key,
-    this.size = 40.0,
-    this.showOuterGlow = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: showOuterGlow
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF7C4DFF).withValues(alpha: 0.35),
-                  blurRadius: size * 0.25,
-                  spreadRadius: 1,
-                )
-              ]
-            : null,
-      ),
-      child: CustomPaint(
-        size: Size(size, size),
-        painter: _XyphraLogoPainter(),
-      ),
-    );
-  }
-}
-
-class _XyphraLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width * 0.44;
-
-    final bgGradient = const RadialGradient(
-      colors: [
-        Color(0xFF1F1A3A),
-        Color(0xFF0F0B1E),
-        Color(0xFF05030A),
-      ],
-      stops: [0.0, 0.7, 1.0],
-    );
-
-    final bgPaint = Paint()
-      ..shader = bgGradient.createShader(
-        Rect.fromCircle(center: center, radius: radius),
-      );
-
-    canvas.drawCircle(center, radius, bgPaint);
-
-    final strokeGlowPaint = Paint()
-      ..shader = const SweepGradient(
-        colors: [
-          Color(0xFF7C4DFF),
-          Color(0xFFE040FB),
-          Color(0xFF00E5FF),
-          Color(0xFF7C4DFF),
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.028
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.025);
-
-    final strokePaint = Paint()
-      ..shader = const SweepGradient(
-        colors: [
-          Color(0xFFB388FF),
-          Color(0xFFEA80FC),
-          Color(0xFF80D8FF),
-          Color(0xFFB388FF),
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.018;
-
-    canvas.drawCircle(center, radius, strokeGlowPaint);
-    canvas.drawCircle(center, radius, strokePaint);
-
-    final w = size.width;
-    final h = size.height;
-
-    final paintGlow = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF7C4DFF), Color(0xFFE040FB)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(0, 0, w, h))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.075
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.05);
-
-    final paintLine = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFD1C4E9), Color(0xFFEA80FC), Colors.white],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(0, 0, w, h))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.065
-      ..strokeCap = StrokeCap.round;
-
-    final pathLeft = Path()
-      ..moveTo(w * 0.32, h * 0.32)
-      ..lineTo(w * 0.68, h * 0.68);
-
-    final pathBolt = Path()
-      ..moveTo(w * 0.68, h * 0.32)
-      ..lineTo(w * 0.48, h * 0.52)
-      ..lineTo(w * 0.56, h * 0.52)
-      ..lineTo(w * 0.32, h * 0.68);
-
-    canvas.drawPath(pathLeft, paintGlow);
-    canvas.drawPath(pathBolt, paintGlow);
-    canvas.drawPath(pathLeft, paintLine);
-    canvas.drawPath(pathBolt, paintLine);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// ============================================================================
-/// ГЛАВНЫЙ ЭКРАН РАБОЧЕЙ ОБЛАСТИ
-/// ============================================================================
 class MainWorkspaceScreen extends StatefulWidget {
   final UserProfile currentUser;
   final bool isConnected;
@@ -198,8 +64,8 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
   StreamSubscription<Map<String, int>>? _unreadCountsSubscription;
   RealtimeChannel? _profilesRealtimeChannel;
 
-  Map<String, int> _unreadCountsMap = {};
-  Set<String> _activeChatUserIds = {};
+  final Map<String, int> _unreadCountsMap = {};
+  final Set<String> _activeChatUserIds = {};
 
   String _searchQuery = '';
   bool _isSearchingUsers = false;
@@ -234,6 +100,25 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
         enableAnimation: true,
       );
 
+  Widget _buildUserAvatarWidget(UserProfile user, {double radius = 18}) {
+    final provider = _getUserAvatarProvider(user);
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.deepPurple,
+      backgroundImage: provider,
+      child: provider == null
+          ? Text(
+              user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : 'U',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: radius * 0.75,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          : null,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -267,38 +152,10 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     _allGlobalUsers.addAll([widget.currentUser, _savedMessagesUser, _xyphraBot]);
     _selectedTargetUser = _xyphraBot;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      AuthService.saveSession(widget.currentUser);
-      _loadCachedMessages();
-      _loadGlobalUsersFromServer();
-      _subscribeToProfilesRealtime();
-      _subscribeToGlobalIncomingMessages();
-      _subscribeToReactiveStreams();
-    });
-  }
-
-  void _subscribeToReactiveStreams() {
-    _activeChatsSubscription?.cancel();
-    _activeChatsSubscription = _chatSyncService
-        .streamActiveChatUserIds(widget.currentUser.id)
-        .listen((ids) {
-      if (mounted) {
-        setState(() {
-          _activeChatUserIds = ids;
-        });
-      }
-    });
-
-    _unreadCountsSubscription?.cancel();
-    _unreadCountsSubscription = _chatSyncService
-        .streamUnreadCountsMap(widget.currentUser.id)
-        .listen((map) {
-      if (mounted) {
-        setState(() {
-          _unreadCountsMap = map;
-        });
-      }
-    });
+    _loadCachedMessages();
+    _loadGlobalUsersFromServer();
+    _subscribeToProfilesRealtime();
+    _subscribeToGlobalIncomingMessages();
   }
 
   void _subscribeToGlobalIncomingMessages() {
@@ -310,6 +167,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       final senderId = newMessage.senderId;
 
       setState(() {
+        _activeChatUserIds.add(senderId);
         final chat = _chatHistory.putIfAbsent(senderId, () => []);
         if (!chat.any((m) => m.id == newMessage.id)) {
           chat
@@ -321,8 +179,10 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       _chatSyncService.saveChatHistory(widget.currentUser.id, _chatHistory);
       if (_selectedTargetUser.id == senderId) {
         _scrollToBottom();
-        // Уберите или закомментируйте эту строку, если метод не нужен:
-        // _chatSyncService.markChatAsRead(widget.currentUser.id, senderId);
+      } else {
+        setState(() {
+          _unreadCountsMap[senderId] = (_unreadCountsMap[senderId] ?? 0) + 1;
+        });
       }
     });
   }
@@ -414,7 +274,10 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     if (!mounted) return;
     setState(() {
       if (cached.isNotEmpty) {
-        cached.forEach((k, list) => list.sort((a, b) => a.timestamp.compareTo(b.timestamp)));
+        cached.forEach((k, list) {
+          list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          _activeChatUserIds.add(k);
+        });
         _chatHistory.addAll(cached);
       } else {
         _chatHistory[_xyphraBot.id] = [
@@ -426,6 +289,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
             timestamp: DateTime.now().toUtc(),
           )
         ];
+        _activeChatUserIds.add(_xyphraBot.id);
       }
 
       if (savedUserId != null) {
@@ -444,8 +308,9 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     _chatSubscription = null;
     final activeId = _selectedTargetUser.id;
 
-    // Уберите или закомментируйте эту строку, если метод не нужен:
-    // _chatSyncService.markChatAsRead(widget.currentUser.id, activeId);
+    setState(() {
+      _unreadCountsMap[activeId] = 0;
+    });
 
     if (activeId == _xyphraBot.id || activeId == _savedMessagesUser.id) return;
 
@@ -462,7 +327,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     );
   }
 
-  /// АВТОСКРОЛЛ К ПОСЛЕДНЕМУ СООБЩЕНИЮ ВНИЗ
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 50), () {
@@ -510,30 +374,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
     if (user.avatarBytes?.isNotEmpty == true) return MemoryImage(user.avatarBytes!);
     if (user.avatarUrl.isNotEmpty) return NetworkImage(user.avatarUrl);
     return null;
-  }
-
-  /// УНИВЕРСАЛЬНЫЙ АВАТАР (ПОДСТАВЛЯЕТ XYPHRA LOGO ДЛЯ БОТА ВЕЗДЕ)
-  Widget _buildUserAvatarWidget(UserProfile user, {double radius = 16}) {
-    if (user.id == _xyphraBot.id || user.badges.contains('BOT')) {
-      return XyphraLogoIcon(size: radius * 2, showOuterGlow: false);
-    }
-
-    final avatarProvider = _getUserAvatarProvider(user);
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: Colors.deepPurple,
-      backgroundImage: avatarProvider,
-      child: avatarProvider == null
-          ? Text(
-              user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : 'U',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: radius * 0.8,
-                fontWeight: FontWeight.bold,
-              ),
-            )
-          : null,
-    );
   }
 
   Future<void> _pickMediaFromGallery() async {
@@ -664,6 +504,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
       );
 
       setState(() {
+        _activeChatUserIds.add(targetId);
         messages
           ..add(newMsg)
           ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -857,7 +698,6 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
           padding: const EdgeInsets.all(8),
           child: Row(
             children: [
-              // 1. DOCK ПАНЕЛЬ СЛЕВА
               if (!isMobile || !_isMobileChatOpen)
                 Container(
                   width: 64,
@@ -870,7 +710,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
-                      const XyphraLogoIcon(size: 44, showOuterGlow: true),
+                      const XyphraLogo(size: 44),
                       const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           child: Divider(color: Colors.white10, height: 1)),
@@ -995,7 +835,7 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                   dense: true,
                                   leading: Stack(
                                     children: [
-                                      const XyphraLogoIcon(size: 32, showOuterGlow: false),
+                                      const XyphraLogo(size: 32),
                                       Positioned(
                                           right: 0,
                                           bottom: 0,
@@ -1030,76 +870,89 @@ class _MainWorkspaceScreenState extends State<MainWorkspaceScreen> {
                                   u.id != _xyphraBot.id &&
                                   u.id != _savedMessagesUser.id &&
                                   u.id != widget.currentUser.id))
-                                Builder(
-                                  builder: (context) {
-                                    final unreadCount = _unreadCountsMap[user.id] ?? 0;
-                                    return _buildAnimatedChatTile(
-                                      isSelected: _currentTab == ActiveWorkspaceTab.chat &&
-                                          _selectedTargetUser.id == user.id,
-                                      onTap: () {
-                                        if (isMobile) _isMobileChatOpen = true;
-                                        _selectUserAndSwitchChat(user);
-                                      },
-                                      child: ListTile(
-                                        dense: true,
-                                        leading: Stack(
-                                          children: [
-                                            _buildUserAvatarWidget(user, radius: 16),
-                                            Positioned(
-                                              right: 0,
-                                              bottom: 0,
-                                              child: _buildStatusIndicatorForUser(user, size: 10),
-                                            ),
-                                          ],
-                                        ),
-                                        title: Row(
-                                          children: [
-                                            Flexible(
-                                              child: Text(
-                                                user.displayName,
-                                                style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.bold),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            if (user.badges.isNotEmpty) ...[
-                                              const SizedBox(width: 5),
-                                              BadgeManager.buildBadgesList(user.badges)
-                                            ],
-                                          ],
-                                        ),
-                                        subtitle: Text(
-                                          '@${user.username}',
-                                          style: const TextStyle(
-                                              color: Colors.white38, fontSize: 11),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        trailing: unreadCount > 0
-                                            ? Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 7, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.deepPurpleAccent,
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                child: Text(
-                                                  unreadCount > 99
-                                                      ? '99+'
-                                                      : '$unreadCount',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              )
-                                            : null,
-                                      ),
-                                    );
+                                _buildAnimatedChatTile(
+                                  isSelected: _currentTab == ActiveWorkspaceTab.chat &&
+                                      _selectedTargetUser.id == user.id,
+                                  onTap: () {
+                                    _chatSubscription?.cancel();
+                                    _chatSubscription = null;
+                                    setState(() {
+                                      _selectedTargetUser = user;
+                                      _currentTab = ActiveWorkspaceTab.chat;
+                                      if (isMobile) _isMobileChatOpen = true;
+                                    });
+                                    _saveLastActiveUserId(user.id);
+                                    _subscribeToSelectedChat();
                                   },
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Stack(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 16,
+                                          backgroundColor: Colors.deepPurple,
+                                          backgroundImage: _getUserAvatarProvider(user),
+                                          child: _getUserAvatarProvider(user) == null
+                                              ? Text(
+                                                  user.displayName.isNotEmpty
+                                                      ? user.displayName[0].toUpperCase()
+                                                      : 'U',
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.bold),
+                                                )
+                                              : null,
+                                        ),
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: _buildStatusIndicatorForUser(user, size: 10),
+                                        ),
+                                      ],
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            user.displayName,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (user.badges.isNotEmpty) ...[
+                                          const SizedBox(width: 5),
+                                          BadgeManager.buildBadgesList(user.badges)
+                                        ],
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      '@${user.username}',
+                                      style: const TextStyle(
+                                          color: Colors.white38, fontSize: 11),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: (_unreadCountsMap[user.id] ?? 0) > 0
+                                        ? Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.deepPurpleAccent,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              '${_unreadCountsMap[user.id]}',
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
                                 ),
                             ],
                           ),
