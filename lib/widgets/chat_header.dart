@@ -7,12 +7,14 @@ class ChatHeader extends StatelessWidget {
   final UserProfile targetUser;
   final bool isProfileOpen;
   final VoidCallback onToggleProfile;
+  final VoidCallback? onClearChat;
 
   const ChatHeader({
     super.key,
     required this.targetUser,
     required this.isProfileOpen,
     required this.onToggleProfile,
+    this.onClearChat,
   });
 
   bool get _isSavedMessages =>
@@ -90,12 +92,63 @@ class ChatHeader extends StatelessWidget {
     );
   }
 
+  void _showClearChatDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF181A26),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Colors.white12),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_sweep_rounded, color: Color(0xFFFF5252)),
+            SizedBox(width: 10),
+            Text(
+              'Очистить историю?',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Все сообщения в этом чате будут удалены для вас. Это действие нельзя отменить.',
+          style: TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:
+                const Text('Отмена', style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5252).withValues(alpha: 0.2),
+              foregroundColor: const Color(0xFFFF5252),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              if (onClearChat != null) {
+                onClearChat!();
+              }
+            },
+            child: const Text('Очистить',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final onlineState =
         StatusIndicator.getStatus(targetUser, isConnected: true);
 
-    // 🎯 Текст и цвета статуса (Учитывая Saved Messages)
     final String titleText = _isSavedMessages
         ? 'Saved Messages'
         : (targetUser.displayName.isNotEmpty
@@ -235,41 +288,7 @@ class ChatHeader extends StatelessWidget {
             onPressed: () {},
           ),
 
-          // 👤 PROFILE PANEL TOGGLE BUTTON WITH GLOW
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: isProfileOpen
-                  ? const Color(0xFF7C4DFF).withValues(alpha: 0.2)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isProfileOpen
-                    ? const Color(0xFF7C4DFF)
-                    : Colors.transparent,
-                width: 1,
-              ),
-              boxShadow: isProfileOpen
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFF7C4DFF).withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      )
-                    ]
-                  : [],
-            ),
-            child: IconButton(
-              icon: Icon(
-                Icons.account_box_rounded,
-                color: isProfileOpen ? const Color(0xFF7C4DFF) : Colors.white54,
-                size: 20,
-              ),
-              tooltip: 'User Profile',
-              onPressed: onToggleProfile,
-            ),
-          ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
 
           // 🔍 SEARCH FIELD
           SizedBox(
@@ -295,6 +314,98 @@ class ChatHeader extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // ⚙️ MENU (3 DOTS) BUTTON
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded,
+                color: Colors.white54, size: 20),
+            tooltip: 'Опции чата',
+            color: const Color(0xFF181A26),
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Colors.white12, width: 1),
+            ),
+            onSelected: (value) {
+              switch (value) {
+                case 'toggle_profile':
+                  onToggleProfile();
+                  break;
+                case 'clear_chat':
+                  _showClearChatDialog(context);
+                  break;
+                case 'mute':
+                  // Реализация заглушения уведомлений
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'toggle_profile',
+                child: Row(
+                  children: [
+                    Icon(
+                      isProfileOpen
+                          ? Icons.dock_rounded
+                          : Icons.account_circle_rounded,
+                      color: isProfileOpen
+                          ? const Color(0xFF7C4DFF)
+                          : Colors.white70,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      isProfileOpen ? 'Скрыть профиль' : 'Открыть профиль',
+                      style: TextStyle(
+                        color: isProfileOpen
+                            ? const Color(0xFF7C4DFF)
+                            : Colors.white,
+                        fontSize: 13,
+                        fontWeight:
+                            isProfileOpen ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              const PopupMenuItem<String>(
+                value: 'mute',
+                child: Row(
+                  children: [
+                    Icon(Icons.notifications_off_rounded,
+                        color: Colors.white70, size: 18),
+                    SizedBox(width: 12),
+                    Text(
+                      'Отключить уведомления',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              const PopupMenuItem<String>(
+                value: 'clear_chat',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_sweep_rounded,
+                        color: Color(0xFFFF5252), size: 18),
+                    SizedBox(width: 12),
+                    Text(
+                      'Очистить историю',
+                      style: TextStyle(
+                        color: Color(0xFFFF5252),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

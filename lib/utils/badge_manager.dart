@@ -20,9 +20,9 @@ class BadgeConfig {
 
 class BadgeManager {
   static final Map<String, BadgeConfig> _badges = {
-    'OWNER': const BadgeConfig(
-      code: 'OWNER',
-      label: 'OWNER',
+    'FOUNDER': const BadgeConfig(
+      code: 'FOUNDER',
+      label: 'FOUNDER',
       color: Color(0xFFFFD700),
       icon: Icons.military_tech_rounded,
       users: [
@@ -34,9 +34,7 @@ class BadgeManager {
       label: 'TESTER',
       color: Color(0xFFE040FB),
       icon: Icons.bug_report_rounded,
-      users: [
-        '1784833068033'
-      ],
+      users: ['1784833068033'],
     ),
     'BOT': const BadgeConfig(
       code: 'BOT',
@@ -78,7 +76,8 @@ class BadgeManager {
       if (config.users.isNotEmpty) {
         final hasMatch = config.users.any((entry) {
           final cleanEntry = entry.toLowerCase().trim();
-          return (cleanId.isNotEmpty && cleanEntry == cleanId) || cleanEntry == cleanUname;
+          return (cleanId.isNotEmpty && cleanEntry == cleanId) ||
+              cleanEntry == cleanUname;
         });
 
         if (hasMatch) {

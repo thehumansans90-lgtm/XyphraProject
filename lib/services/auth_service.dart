@@ -25,13 +25,22 @@ class AuthService {
     user.badges.addAll(updatedList);
   }
 
-  /// Парсит дату last_seen в UTC
+  /// Безопасный парсинг даты из Supabase (гарантирует UTC и переводит в локальное время)
   static DateTime? _parseLastSeen(dynamic rawDate) {
     if (rawDate == null) return null;
-    if (rawDate is String) {
-      return DateTime.tryParse(rawDate)?.toUtc();
+    try {
+      final str = rawDate.toString();
+      if (str.isEmpty) return null;
+
+      // Если дата не содержит 'Z' или смещение '+00', принудительно указываем, что это UTC
+      final formattedStr =
+          (str.contains('Z') || str.contains('+')) ? str : '${str}Z';
+
+      return DateTime.tryParse(formattedStr)?.toLocal();
+    } catch (e) {
+      debugPrint('Ошибка парсинга даты: $e');
+      return null;
     }
-    return null;
   }
 
   /// Запуск фонового пинга на сервер каждые 30 секунд
@@ -218,7 +227,7 @@ class AuthService {
           joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
           badges: badgesList,
           isOnline: json['is_online'] ?? false,
-          lastSeen: _parseLastSeen(json['last_seen']), // FIXED
+          lastSeen: _parseLastSeen(json['last_seen']),
         );
 
         _applyBadges(user);
@@ -245,7 +254,7 @@ class AuthService {
           joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
           badges: badgesList,
           isOnline: json['is_online'] ?? false,
-          lastSeen: _parseLastSeen(json['last_seen']), // FIXED
+          lastSeen: _parseLastSeen(json['last_seen']),
         );
 
         _applyBadges(user);
@@ -300,7 +309,7 @@ class AuthService {
           joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
           badges: badgesList,
           isOnline: json['is_online'] ?? false,
-          lastSeen: _parseLastSeen(json['last_seen']), // FIXED
+          lastSeen: _parseLastSeen(json['last_seen']),
         );
 
         _applyBadges(user);
@@ -353,7 +362,7 @@ class AuthService {
         joinedDate: response['joined_date'] ?? response['joinedDate'] ?? '',
         badges: badgesList,
         isOnline: response['is_online'] ?? false,
-        lastSeen: _parseLastSeen(response['last_seen']), // FIXED
+        lastSeen: _parseLastSeen(response['last_seen']),
       );
 
       _applyBadges(user);

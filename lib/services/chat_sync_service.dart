@@ -247,7 +247,7 @@ class ChatSyncService {
     }
   }
 
-  /// 8. Безопасное удаление сообщения
+  /// 8. Безопасное удаление одного сообщения
   Future<bool> deleteMessage({
     required String messageId,
     required String currentUserId,
@@ -318,7 +318,67 @@ class ChatSyncService {
     }
   }
 
-  /// 9. Редактирование сообщения в Supabase и обновление кэша
+  /// 9. ПОЛНАЯ ОЧИСТКА ИСТОРИИ ЧАТА (У СЕБЯ И СОБЕСЕДНИКА)
+  Future<bool> clearChatHistory({
+    required String currentUserId,
+    required String targetUserId,
+  }) async {
+    try {
+      final isSavedMessages = currentUserId == targetUserId;
+
+      // 1. Собираем сообщения из БД, чтобы почистить прикрепленные файлы в хранилище
+      final dynamic queryFilter;
+      if (isSavedMessages) {
+        queryFilter =
+            'sender_id.eq.$currentUserId,receiver_id.eq.$currentUserId';
+      } else {
+        queryFilter =
+            'and(sender_id.eq.$currentUserId,receiver_id.eq.$targetUserId),and(sender_id.eq.$targetUserId,receiver_id.eq.$currentUserId)';
+      }
+
+      final messagesToDelete =
+          await _supabase.from('messages').select('media_url').or(queryFilter);
+
+      // 2. Очищаем все файлы медиа в bucket 'chat_media', связанные с этими сообщениями
+      final List<String> filesToRemove = [];
+      for (var row in messagesToDelete as List) {
+        final String? mediaUrl = row['media_url'];
+        if (mediaUrl != null && mediaUrl.isNotEmpty) {
+          final uri = Uri.tryParse(mediaUrl);
+          if (uri != null && uri.pathSegments.isNotEmpty) {
+            final storageIndex = uri.pathSegments.indexOf('chat_media');
+            if (storageIndex != -1 &&
+                storageIndex + 1 < uri.pathSegments.length) {
+              final fileName =
+                  uri.pathSegments.sublist(storageIndex + 1).join('/');
+              filesToRemove.add(fileName);
+            }
+          }
+        }
+      }
+
+      if (filesToRemove.isNotEmpty) {
+        await _supabase.storage.from('chat_media').remove(filesToRemove);
+      }
+
+      // 3. Удаляем все записи сообщений из Supabase
+      await _supabase.from('messages').delete().or(queryFilter);
+
+      // 4. Очищаем историю локально в кэше SharedPreferences
+      final history = await loadChatHistory(currentUserId);
+      if (history.containsKey(targetUserId)) {
+        history[targetUserId]!.clear();
+        await saveChatHistory(currentUserId, history);
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('Ошибка при полной очистке истории чата: $e');
+      return false;
+    }
+  }
+
+  /// 10. Редактирование сообщения в Supabase и обновление кэша
   Future<bool> updateMessage({
     required String messageId,
     required String currentUserId,
@@ -352,7 +412,7 @@ class ChatSyncService {
     }
   }
 
-  /// 10. Стрим статуса пользователя
+  /// 11. Стрим статуса пользователя
   Stream<UserStatus> subscribeToUserDetailedStatus(String userId) {
     return _supabase
         .from('profiles')
@@ -381,7 +441,7 @@ class ChatSyncService {
         });
   }
 
-  /// 11. Персональный локальный кэш
+  /// 12. Персональный локальный кэш
   Future<void> saveChatHistory(
       String userId, Map<String, List<ChatMessage>> history) async {
     try {
