@@ -11,6 +11,11 @@ class ChatSyncService {
   /// Динамический ключ кэша для ИЗОЛЯЦИИ сообщений разных пользователей
   String _getCacheKey(String userId) => 'xyphra_chat_messages_cache_$userId';
 
+  /// Вспомогательный метод парсинга JSON из Supabase в ChatMessage
+  ChatMessage _parseChatMessage(Map<String, dynamic> json) {
+    return ChatMessage.fromJson(json);
+  }
+
   /// 1. Подписка на ВСЕ сообщения для фонового получения и уведомлений
   StreamSubscription<List<ChatMessage>> subscribeToAllIncomingMessages(
     String currentUserId,
@@ -27,18 +32,7 @@ class ChatSyncService {
             return sender == currentUserId || receiver == currentUserId;
           }).toList();
 
-          final messages = userMessages.map((json) {
-            return ChatMessage(
-              id: json['id'].toString(),
-              senderId: json['sender_id']?.toString() ?? '',
-              text: json['text'] ?? json['content'] ?? '',
-              timestamp: DateTime.parse(json['created_at']).toUtc(),
-              isVideo: json['is_video'] ?? false,
-              isEdited: json['is_edited'] ?? false,
-              isRead: json['is_read'] ?? false,
-            );
-          }).toList();
-
+          final messages = userMessages.map(_parseChatMessage).toList();
           messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
           return messages;
         })
@@ -69,18 +63,7 @@ class ChatSyncService {
                 (sender == targetUserId && receiver == currentUserId);
           }).toList();
 
-          final messages = filtered.map((json) {
-            return ChatMessage(
-              id: json['id'].toString(),
-              senderId: json['sender_id']?.toString() ?? '',
-              text: json['text'] ?? json['content'] ?? '',
-              timestamp: DateTime.parse(json['created_at']).toUtc(),
-              isVideo: json['is_video'] ?? false,
-              isEdited: json['is_edited'] ?? false,
-              isRead: json['is_read'] ?? false,
-            );
-          }).toList();
-
+          final messages = filtered.map(_parseChatMessage).toList();
           messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
           return messages;
         });
@@ -117,44 +100,38 @@ class ChatSyncService {
 
   /// 4. РЕАКТИВНЫЙ Поток карт всех непрочитанных сообщений по пользователям
   Stream<Map<String, int>> streamUnreadCountsMap(String currentUserId) {
-    return _supabase
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .map((data) {
-          final Map<String, int> counts = {};
+    return _supabase.from('messages').stream(primaryKey: ['id']).map((data) {
+      final Map<String, int> counts = {};
 
-          for (var msg in data) {
-            final sender = msg['sender_id']?.toString();
-            final receiver = msg['receiver_id']?.toString();
-            final isRead = msg['is_read'] ?? false;
+      for (var msg in data) {
+        final sender = msg['sender_id']?.toString();
+        final receiver = msg['receiver_id']?.toString();
+        final isRead = msg['is_read'] ?? false;
 
-            if (receiver == currentUserId && !isRead && sender != null) {
-              counts[sender] = (counts[sender] ?? 0) + 1;
-            }
-          }
+        if (receiver == currentUserId && !isRead && sender != null) {
+          counts[sender] = (counts[sender] ?? 0) + 1;
+        }
+      }
 
-          return counts;
-        });
+      return counts;
+    });
   }
 
-  /// 5. РЕАКТИВНЫЙ ПОТОК активных диалогов (Сразу добавляет собеседника в список)
+  /// 5. РЕАКТИВНЫЙ ПОТОК активных диалогов
   Stream<Set<String>> streamActiveChatUserIds(String currentUserId) {
-    return _supabase
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .map((data) {
-          final Set<String> activeIds = {};
+    return _supabase.from('messages').stream(primaryKey: ['id']).map((data) {
+      final Set<String> activeIds = {};
 
-          for (var row in data) {
-            final s = row['sender_id']?.toString();
-            final r = row['receiver_id']?.toString();
+      for (var row in data) {
+        final s = row['sender_id']?.toString();
+        final r = row['receiver_id']?.toString();
 
-            if (s != null && s != currentUserId) activeIds.add(s);
-            if (r != null && r != currentUserId) activeIds.add(r);
-          }
+        if (s != null && s != currentUserId) activeIds.add(s);
+        if (r != null && r != currentUserId) activeIds.add(r);
+      }
 
-          return activeIds;
-        });
+      return activeIds;
+    });
   }
 
   /// РЕЗЕРВНЫЙ Разовый запрос активных чатов
@@ -209,7 +186,8 @@ class ChatSyncService {
 
       if (mediaBytes != null && mediaBytes.isNotEmpty) {
         final ext = isVideo ? 'mp4' : 'png';
-        final fileName = '${senderId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final fileName =
+            '${senderId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
         await _supabase.storage.from('chat_media').uploadBinary(
               fileName,
@@ -243,10 +221,14 @@ class ChatSyncService {
 
       final createdMessage = ChatMessage(
         id: response['id'].toString(),
-        senderId: response['sender_id'],
+        senderId: response['sender_id']?.toString() ?? senderId,
         text: response['text'] ?? response['content'] ?? '',
-        timestamp: DateTime.parse(response['created_at']).toUtc(),
+        timestamp: DateTime.tryParse(response['created_at']?.toString() ?? '')
+                ?.toUtc() ??
+            nowUtc,
+        mediaUrl: response['media_url'],
         mediaBytes: mediaBytes,
+        mediaListBytes: mediaBytes != null ? [mediaBytes] : null,
         isVideo: response['is_video'] ?? isVideo,
         isEdited: response['is_edited'] ?? false,
         isRead: false,
@@ -265,7 +247,7 @@ class ChatSyncService {
     }
   }
 
-  /// 8. Удаление сообщения из Supabase и локального кэша
+  /// 8. Безопасное удаление сообщения
   Future<bool> deleteMessage({
     required String messageId,
     required String currentUserId,
@@ -281,40 +263,57 @@ class ChatSyncService {
         return true;
       }
 
+      // 1. Получаем данные для удаления media из бакета
       final msgResponse = await _supabase
           .from('messages')
-          .select('media_url')
+          .select('media_url, sender_id')
           .eq('id', messageId)
           .maybeSingle();
 
-      if (msgResponse != null && msgResponse['media_url'] != null) {
-        final String mediaUrl = msgResponse['media_url'];
-        final uri = Uri.tryParse(mediaUrl);
-        if (uri != null && uri.pathSegments.isNotEmpty) {
-          final fileName = uri.pathSegments.last;
-          await _supabase.storage.from('chat_media').remove([fileName]);
+      if (msgResponse != null) {
+        final senderId = msgResponse['sender_id']?.toString();
+        if (senderId != null && senderId != currentUserId) {
+          debugPrint('Попытка удалить чужое сообщение отклонена');
+          return false;
+        }
+
+        final String? mediaUrl = msgResponse['media_url'];
+        if (mediaUrl != null && mediaUrl.isNotEmpty) {
+          final uri = Uri.tryParse(mediaUrl);
+          if (uri != null && uri.pathSegments.isNotEmpty) {
+            final storageIndex = uri.pathSegments.indexOf('chat_media');
+            if (storageIndex != -1 &&
+                storageIndex + 1 < uri.pathSegments.length) {
+              final fileName =
+                  uri.pathSegments.sublist(storageIndex + 1).join('/');
+              await _supabase.storage.from('chat_media').remove([fileName]);
+            }
+          }
         }
       }
 
-      await _supabase
+      // 2. Удаление с проверкой через .select()
+      final deleted = await _supabase
           .from('messages')
           .delete()
           .eq('id', messageId)
-          .eq('sender_id', currentUserId);
+          .select();
 
+      if ((deleted as List).isEmpty) {
+        debugPrint('БД не удалила запись (проверьте RLS политику)');
+        return false;
+      }
+
+      // 3. Чистим локальный кэш
       await removeMessageFromCache(
         currentUserId: currentUserId,
         chatId: targetUserId,
         messageId: messageId,
       );
+
       return true;
     } catch (e) {
       debugPrint('Ошибка при удалении сообщения: $e');
-      await removeMessageFromCache(
-        currentUserId: currentUserId,
-        chatId: targetUserId,
-        messageId: messageId,
-      );
       return false;
     }
   }
@@ -369,11 +368,12 @@ class ChatSyncService {
           if (!isOnline) return UserStatus.offline;
 
           if (lastSeenRaw != null) {
-            final lastSeen = DateTime.parse(lastSeenRaw).toUtc();
-            final difference = DateTime.now().toUtc().difference(lastSeen);
-
-            if (difference.inMinutes >= 2) {
-              return UserStatus.idle;
+            final lastSeen = DateTime.tryParse(lastSeenRaw)?.toUtc();
+            if (lastSeen != null) {
+              final difference = DateTime.now().toUtc().difference(lastSeen);
+              if (difference.inMinutes >= 2) {
+                return UserStatus.idle;
+              }
             }
           }
 
@@ -382,7 +382,8 @@ class ChatSyncService {
   }
 
   /// 11. Персональный локальный кэш
-  Future<void> saveChatHistory(String userId, Map<String, List<ChatMessage>> history) async {
+  Future<void> saveChatHistory(
+      String userId, Map<String, List<ChatMessage>> history) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final Map<String, dynamic> rawMap = {};
@@ -409,7 +410,8 @@ class ChatSyncService {
       decoded.forEach((chatId, messagesRaw) {
         if (messagesRaw is List) {
           final list = messagesRaw
-              .map((item) => ChatMessage.fromJson(Map<String, dynamic>.from(item)))
+              .map((item) =>
+                  ChatMessage.fromJson(Map<String, dynamic>.from(item)))
               .toList();
 
           list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
@@ -456,15 +458,9 @@ class ChatSyncService {
         final index = list.indexWhere((m) => m.id == messageId);
         if (index != -1) {
           final oldMsg = list[index];
-          list[index] = ChatMessage(
-            id: oldMsg.id,
-            senderId: oldMsg.senderId,
+          list[index] = oldMsg.copyWith(
             text: newText,
-            timestamp: oldMsg.timestamp,
-            mediaBytes: oldMsg.mediaBytes,
-            isVideo: oldMsg.isVideo,
             isEdited: true,
-            isRead: oldMsg.isRead,
           );
           await saveChatHistory(currentUserId, history);
         }

@@ -8,8 +8,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Импорты твоего проекта
 import 'package:my_app/models/user_model.dart';
 import 'package:my_app/services/auth_service.dart';
-import 'package:my_app/screens/auth_screen.dart';
+import 'package:my_app/screens/auth_screen.dart' hide XyphraLogo;
 import 'package:my_app/screens/main_workspace_screen.dart';
+import '../widgets/xyphra_logo.dart';
 
 void main() {
   // Запуск и инициализация внутри защищенной зоны
@@ -76,7 +77,6 @@ class _XyphraAppState extends State<XyphraApp> {
 
   /// Фоновое отслеживание смены сети (с защитой для Windows)
   void _listenConnectivity() {
-    // На Windows отключаем проблемный EventChannel
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
       return;
     }
@@ -201,7 +201,7 @@ class _XyphraAppState extends State<XyphraApp> {
     );
   }
 
-  /// Прямоугольная мини-панель загрузки в стиле Discord
+  /// Прямоугольная мини-панель загрузки в стиле Discord с кастомным лого
   Widget _buildSplashScreen() {
     final bool isWaitingForRetry = !_isConnected && _secondsRemaining > 0;
 
@@ -229,26 +229,17 @@ class _XyphraAppState extends State<XyphraApp> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Контейнер с неоновым XyphraLogo
               Container(
-                width: 54,
-                height: 54,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.deepPurpleAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
+                  color: const Color(0xFF7C4DFF).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.deepPurpleAccent.withValues(alpha: 0.4),
+                    color: const Color(0xFF7C4DFF).withValues(alpha: 0.25),
                   ),
                 ),
-                child: const Center(
-                  child: Text(
-                    'X',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.deepPurpleAccent,
-                    ),
-                  ),
-                ),
+                child: const XyphraLogo(size: 44),
               ),
               const SizedBox(height: 20),
               if (!isWaitingForRetry) ...[
@@ -257,7 +248,7 @@ class _XyphraAppState extends State<XyphraApp> {
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.deepPurpleAccent,
+                    color: Color(0xFFB388FF),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -296,7 +287,8 @@ class _XyphraAppState extends State<XyphraApp> {
                     color: Colors.amber.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: Colors.amber.withValues(alpha: 0.3)),
+                      color: Colors.amber.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     'Retry in $_secondsRemaining...',

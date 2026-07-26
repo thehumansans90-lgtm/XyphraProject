@@ -37,7 +37,10 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
   bool _isHovered = false;
 
   void _openGallery(BuildContext context, int initialIndex) {
-    if (widget.message.mediaListBytes == null || widget.message.mediaListBytes!.isEmpty) return;
+    if (widget.message.mediaListBytes == null ||
+        widget.message.mediaListBytes!.isEmpty) {
+      return;
+    }
 
     showDialog(
       context: context,
@@ -64,7 +67,8 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
               if (widget.isMe && widget.onEdit != null)
                 ListTile(
                   leading: const Icon(Icons.edit_outlined, color: Colors.white),
-                  title: const Text('Редактировать', style: TextStyle(color: Colors.white)),
+                  title: const Text('Редактировать',
+                      style: TextStyle(color: Colors.white)),
                   onTap: () {
                     Navigator.pop(context);
                     widget.onEdit?.call();
@@ -72,15 +76,18 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                 ),
               ListTile(
                 leading: const Icon(Icons.reply_rounded, color: Colors.white),
-                title: const Text('Ответить', style: TextStyle(color: Colors.white)),
+                title: const Text('Ответить',
+                    style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   widget.onReply?.call();
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.shortcut_rounded, color: Colors.white),
-                title: const Text('Переслать', style: TextStyle(color: Colors.white)),
+                leading:
+                    const Icon(Icons.shortcut_rounded, color: Colors.white),
+                title: const Text('Переслать',
+                    style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   widget.onForward?.call();
@@ -88,8 +95,10 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
               ),
               if (widget.isMe && widget.onDelete != null)
                 ListTile(
-                  leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                  title: const Text('Удалить', style: TextStyle(color: Colors.redAccent)),
+                  leading: const Icon(Icons.delete_outline_rounded,
+                      color: Colors.redAccent),
+                  title: const Text('Удалить',
+                      style: TextStyle(color: Colors.redAccent)),
                   onTap: () {
                     Navigator.pop(context);
                     widget.onDelete?.call();
@@ -125,7 +134,8 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
             child: InkWell(
               onTap: () => _openGallery(context, index),
               splashColor: Colors.black38,
-              highlightColor: Colors.black.withValues(alpha: 0.4), // Исправлено withOpacity -> withValues
+              highlightColor: Colors.black.withValues(
+                  alpha: 0.4), // Исправлено withOpacity -> withValues
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -137,14 +147,16 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     color: isItemHovered
-                        ? Colors.black.withValues(alpha: 0.25) // Исправлено withOpacity -> withValues
+                        ? Colors.black.withValues(
+                            alpha: 0.25) // Исправлено withOpacity -> withValues
                         : Colors.transparent,
                   ),
                   if (widget.message.isVideo)
                     const Center(
                       child: CircleAvatar(
                         backgroundColor: Colors.black54,
-                        child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                        child: Icon(Icons.play_arrow_rounded,
+                            color: Colors.white, size: 28),
                       ),
                     ),
                 ],
@@ -205,7 +217,8 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                             GestureDetector(
                               onTap: () => _openGallery(context, 2),
                               child: Container(
-                                color: const Color(0x99000000), // Исправлено Colors.black60 -> полупрозрачный черный
+                                color: const Color(
+                                    0x99000000), // Исправлено Colors.black60 -> полупрозрачный черный
                                 alignment: Alignment.center,
                                 child: Text(
                                   '+${count - 2}',
@@ -284,7 +297,9 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                               Text(
                                 widget.senderName,
                                 style: TextStyle(
-                                  color: widget.isMe ? Colors.deepPurpleAccent : Colors.white,
+                                  color: widget.isMe
+                                      ? Colors.deepPurpleAccent
+                                      : Colors.white,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -292,7 +307,8 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                               const SizedBox(width: 8),
                               Text(
                                 '${widget.message.timestamp.hour.toString().padLeft(2, '0')}:${widget.message.timestamp.minute.toString().padLeft(2, '0')}',
-                                style: const TextStyle(color: Colors.white38, fontSize: 10),
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 10),
                               ),
                             ],
                           ),
@@ -301,21 +317,27 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: widget.isMe ? const Color(0xFF2D264D) : const Color(0xFF181B24),
+                            color: widget.isMe
+                                ? const Color(0xFF2D264D)
+                                : const Color(0xFF181B24),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: widget.isMe
-                                  ? Colors.deepPurpleAccent.withValues(alpha: 0.3) // Исправлено withOpacity
-                                  : Colors.white.withValues(alpha: 0.05),          // Исправлено withOpacity
+                                  ? Colors.deepPurpleAccent.withValues(
+                                      alpha: 0.3) // Исправлено withOpacity
+                                  : Colors.white.withValues(
+                                      alpha: 0.05), // Исправлено withOpacity
                             ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (mediaList != null && mediaList.isNotEmpty) ...[
+                              if (mediaList != null &&
+                                  mediaList.isNotEmpty) ...[
                                 _buildMediaGrid(mediaList),
-                                if (widget.message.text.isNotEmpty) const SizedBox(height: 6),
+                                if (widget.message.text.isNotEmpty)
+                                  const SizedBox(height: 6),
                               ],
                               if (widget.message.text.isNotEmpty)
                                 Wrap(
@@ -355,13 +377,15 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                 right: 12,
                 top: 0,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFF222634),
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4), // Исправлено withOpacity
+                        color: Colors.black
+                            .withValues(alpha: 0.4), // Исправлено withOpacity
                         blurRadius: 8,
                       ),
                     ],
@@ -372,26 +396,30 @@ class _AnimatedMessageTileState extends State<AnimatedMessageTile> {
                     children: [
                       if (widget.isMe && widget.onEdit != null)
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 15, color: Colors.white70),
+                          icon: const Icon(Icons.edit_outlined,
+                              size: 15, color: Colors.white70),
                           onPressed: widget.onEdit,
                           padding: const EdgeInsets.all(5),
                           constraints: const BoxConstraints(),
                         ),
                       IconButton(
-                        icon: const Icon(Icons.reply_rounded, size: 15, color: Colors.white70),
+                        icon: const Icon(Icons.reply_rounded,
+                            size: 15, color: Colors.white70),
                         onPressed: widget.onReply,
                         padding: const EdgeInsets.all(5),
                         constraints: const BoxConstraints(),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.shortcut_rounded, size: 15, color: Colors.white70),
+                        icon: const Icon(Icons.shortcut_rounded,
+                            size: 15, color: Colors.white70),
                         onPressed: widget.onForward,
                         padding: const EdgeInsets.all(5),
                         constraints: const BoxConstraints(),
                       ),
                       if (widget.isMe && widget.onDelete != null)
                         IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Colors.redAccent),
+                          icon: const Icon(Icons.delete_outline_rounded,
+                              size: 15, color: Colors.redAccent),
                           onPressed: widget.onDelete,
                           padding: const EdgeInsets.all(5),
                           constraints: const BoxConstraints(),

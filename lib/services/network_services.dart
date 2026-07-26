@@ -8,7 +8,8 @@ class NetworkService {
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
   /// Инициализация слушателя состояния сети
-  void initNetworkListener({required Function(bool isConnected) onStatusChanged}) {
+  void initNetworkListener(
+      {required Function(bool isConnected) onStatusChanged}) {
     // На Windows системный EventChannel connectivity_plus может вести себя нестабильно
     if (defaultTargetPlatform == TargetPlatform.windows) {
       hasActiveInternet().then(onStatusChanged);
@@ -61,9 +62,10 @@ class NetworkService {
     }
 
     try {
-      final List<InternetAddress> result = await InternetAddress.lookup('one.one.one.one')
-          .timeout(const Duration(seconds: 3));
-      
+      final List<InternetAddress> result =
+          await InternetAddress.lookup('one.one.one.one')
+              .timeout(const Duration(seconds: 3));
+
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } on SocketException catch (_) {
       return false;
@@ -78,7 +80,8 @@ class NetworkService {
 
   /// Первичная проверка при старте
   Future<bool> checkInitialConnection() async {
-    final List<ConnectivityResult> results = await _connectivity.checkConnectivity();
+    final List<ConnectivityResult> results =
+        await _connectivity.checkConnectivity();
     if (!_checkHasInterface(results)) {
       return false;
     }

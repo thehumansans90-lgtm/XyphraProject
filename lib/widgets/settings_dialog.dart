@@ -30,7 +30,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   @override
   void initState() {
     super.initState();
-    _displayNameController = TextEditingController(text: widget.user.displayName);
+    _displayNameController =
+        TextEditingController(text: widget.user.displayName);
     _usernameController = TextEditingController(text: widget.user.username);
     _bioController = TextEditingController(text: widget.user.bio);
     _tempAvatarBytes = widget.user.avatarBytes;
@@ -44,11 +45,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
     super.dispose();
   }
 
-  // Загружаем байты изображения и запускаем кадрировщик
   Future<void> _pickAndCropAvatar() async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
-    
+
     if (image == null || !mounted) return;
 
     final bytes = await image.readAsBytes();
@@ -68,7 +68,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
   }
 
-  // Полное удаление текущего аватара
   void _removeAvatar() {
     setState(() {
       _tempAvatarBytes = null;
@@ -91,31 +90,28 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
     widget.user.displayName = _displayNameController.text.trim();
     widget.user.bio = _bioController.text.trim();
-    
-    // Сохраняем новые байты аватара в модель пользователя
     widget.user.avatarBytes = _tempAvatarBytes;
 
     await AuthService.saveUser(widget.user);
     widget.onProfileUpdated();
-    
+
     if (mounted) {
       setState(() => _isSaving = false);
       Navigator.pop(context);
     }
   }
 
-  /// Безопасное получение аватарки (байты, файл или интернет-ссылка)
   ImageProvider? _getAvatarProvider() {
-    // 1. Временные или сохраненные байты в памяти
     if (_tempAvatarBytes != null && _tempAvatarBytes!.isNotEmpty) {
       return MemoryImage(_tempAvatarBytes!);
-    } 
+    }
 
     final url = widget.user.avatarUrl.trim();
     if (url.isEmpty) return null;
 
-    // 2. Локальный путь к файлу
-    if (url.startsWith('/') || url.contains(':\\') || url.startsWith('file://')) {
+    if (url.startsWith('/') ||
+        url.contains(':\\') ||
+        url.startsWith('file://')) {
       final cleanPath = url.replaceFirst('file://', '');
       final file = File(cleanPath);
       if (file.existsSync()) {
@@ -124,7 +120,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
       return null;
     }
 
-    // 3. Сетевой URL (http/https)
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return NetworkImage(url);
     }
@@ -152,13 +147,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок и закрытие
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Настройки профиля',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  'Profile Settings',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.white38),
@@ -167,8 +164,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Область с прокруткой для защиты от переполнения
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -180,12 +175,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             children: [
                               CircleAvatar(
                                 radius: 46,
-                                backgroundColor: Colors.deepPurpleAccent,
+                                backgroundColor: const Color(0xFF7C4DFF),
                                 backgroundImage: avatarProvider,
                                 child: avatarProvider == null
                                     ? Text(
                                         _displayNameController.text.isNotEmpty
-                                            ? _displayNameController.text[0].toUpperCase()
+                                            ? _displayNameController.text[0]
+                                                .toUpperCase()
                                             : 'U',
                                         style: const TextStyle(
                                           fontSize: 32,
@@ -203,10 +199,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: const BoxDecoration(
-                                      color: Colors.deepPurpleAccent,
+                                      color: Color(0xFF7C4DFF),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(Icons.crop_rotate_rounded, size: 16, color: Colors.white),
+                                    child: const Icon(Icons.crop_rotate_rounded,
+                                        size: 16, color: Colors.white),
                                   ),
                                 ),
                               ),
@@ -216,10 +213,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 8),
                             TextButton.icon(
                               onPressed: _isSaving ? null : _removeAvatar,
-                              icon: const Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 14, color: Colors.redAccent),
                               label: const Text(
-                                'Удалить аватар',
-                                style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                                'Remove avatar',
+                                style: TextStyle(
+                                    color: Colors.redAccent, fontSize: 12),
                               ),
                             ),
                           ],
@@ -227,42 +226,49 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    _buildInputField('Отображаемое имя', _displayNameController, 'Ваше имя'),
+                    _buildInputField('Display Name', _displayNameController,
+                        'Your display name'),
                     const SizedBox(height: 14),
-                    _buildInputField('Имя пользователя (@username)', _usernameController, 'username'),
+                    _buildInputField('Username (@username)',
+                        _usernameController, 'username'),
                     const SizedBox(height: 14),
-                    _buildInputField('О себе', _bioController, 'Расскажите о себе...', maxLines: 2),
+                    _buildInputField(
+                        'About Me', _bioController, 'Tell us about yourself...',
+                        maxLines: 2),
                   ],
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
-
-            // Кнопки действий
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
                   onPressed: _isSaving ? null : () => Navigator.pop(context),
-                  child: const Text('Отмена', style: TextStyle(color: Colors.white38)),
+                  child: const Text('Cancel',
+                      style: TextStyle(color: Colors.white38)),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurpleAccent,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: const Color(0xFF7C4DFF),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: _isSaving ? null : _saveSettings,
                   child: _isSaving
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Сохранить', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      : const Text('Save',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -272,13 +278,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
     );
   }
 
-  Widget _buildInputField(String label, TextEditingController controller, String hint, {int maxLines = 1}) {
+  Widget _buildInputField(
+      String label, TextEditingController controller, String hint,
+      {int maxLines = 1}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+              color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 6),
         TextField(
@@ -291,7 +300,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
             hintStyle: const TextStyle(color: Colors.white24),
             filled: true,
             fillColor: const Color(0xFF1A1D28),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,

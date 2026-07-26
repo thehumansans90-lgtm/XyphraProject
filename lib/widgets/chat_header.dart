@@ -1,7 +1,7 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
+import 'status_indicator.dart';
+import '../screens/user_avatar.dart';
 
 class ChatHeader extends StatelessWidget {
   final UserProfile targetUser;
@@ -15,33 +15,10 @@ class ChatHeader extends StatelessWidget {
     required this.onToggleProfile,
   });
 
-  /// Универсальное безопасное получение аватара
-  ImageProvider? _getAvatarImage() {
-    // 1. Байты из памяти (высший приоритет)
-    if (targetUser.avatarBytes != null && targetUser.avatarBytes!.isNotEmpty) {
-      return MemoryImage(targetUser.avatarBytes!);
-    }
-
-    final url = targetUser.avatarUrl.trim();
-    if (url.isEmpty) return null;
-
-    // 2. Локальный файл (проверка kIsWeb для избежания краша в браузере)
-    if (!kIsWeb && (url.startsWith('/') || url.contains(':\\') || url.startsWith('file://'))) {
-      final cleanPath = url.replaceFirst('file://', '');
-      final file = File(cleanPath);
-      if (file.existsSync()) {
-        return FileImage(file);
-      }
-      return null;
-    }
-
-    // 3. Сетевой URL (http/https)
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return NetworkImage(url);
-    }
-
-    return null;
-  }
+  bool get _isSavedMessages =>
+      targetUser.id == 'saved_messages' ||
+      targetUser.username == 'saved_messages' ||
+      targetUser.badges.contains('SAVED');
 
   bool get _isOwner {
     final cleanUsername = targetUser.username.replaceAll('@', '').toLowerCase();
@@ -57,7 +34,7 @@ class ChatHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
       decoration: BoxDecoration(
-        color: Colors.deepPurpleAccent,
+        color: const Color(0xFF7C4DFF),
         borderRadius: BorderRadius.circular(4),
       ),
       child: const Row(
@@ -66,7 +43,7 @@ class ChatHeader extends StatelessWidget {
           Icon(Icons.check, size: 9, color: Colors.white),
           SizedBox(width: 2),
           Text(
-            'БОТ',
+            'BOT',
             style: TextStyle(
               color: Colors.white,
               fontSize: 9,
@@ -115,45 +92,62 @@ class ChatHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarImage = _getAvatarImage();
+    final onlineState =
+        StatusIndicator.getStatus(targetUser, isConnected: true);
 
-    final bool isOnline = _isBot || targetUser.isOnline;
-    final String statusText = _isBot
-        ? 'в сети 24/7'
-        : (isOnline ? 'в сети' : 'был(а) недавно');
+    // 🎯 Текст и цвета статуса (Учитывая Saved Messages)
+    final String titleText = _isSavedMessages
+        ? 'Saved Messages'
+        : (targetUser.displayName.isNotEmpty
+            ? targetUser.displayName
+            : targetUser.username);
+
+    final String statusText = _isSavedMessages
+        ? 'Personal Storage'
+        : StatusIndicator.getStatusText(onlineState);
+
+    final Color statusColor = _isSavedMessages
+        ? Colors.white38
+        : StatusIndicator.getStatusColor(onlineState);
+
+    final bool isGlowing = !_isSavedMessages &&
+        (onlineState == UserOnlineState.online ||
+            onlineState == UserOnlineState.bot);
 
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: const BoxDecoration(
-        color: Color(0xFF16161D),
-        border: Border(bottom: BorderSide(color: Colors.white10)),
+        color: Color(0xFF10121B),
+        border: Border(bottom: BorderSide(color: Color(0xFF1F212D), width: 1)),
       ),
       child: Row(
         children: [
-          // АВАТАР СОБЕСЕДНИКА
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.deepPurple,
-            backgroundImage: avatarImage,
-            child: avatarImage == null
-                ? Text(
-                    targetUser.displayName.isNotEmpty
-                        ? targetUser.displayName[0].toUpperCase()
-                        : (targetUser.username.isNotEmpty
-                            ? targetUser.username[0].toUpperCase()
-                            : 'U'),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
+          // 👤 AVATAR WITH STATUS INDICATOR
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              UserAvatar(
+                user: targetUser,
+                isBot: _isBot,
+                radius: 18,
+              ),
+              if (!_isSavedMessages)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: StatusIndicator(
+                    user: targetUser,
+                    isConnected: true,
+                    size: 10,
+                    enableAnimation: false,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
 
-          // ИМЯ, БЕЙДЖИ И СТАТУС СЕТИ
+          // 🏷️ USERNAME & STATUS
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -164,9 +158,7 @@ class ChatHeader extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        targetUser.displayName.isNotEmpty
-                            ? targetUser.displayName
-                            : targetUser.username,
+                        titleText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -176,32 +168,45 @@ class ChatHeader extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (_isOwner) ...[
+                    if (_isOwner && !_isSavedMessages) ...[
                       const SizedBox(width: 6),
                       _buildOwnerBadge(),
-                    ] else if (_isBot) ...[
+                    ] else if (_isBot && !_isSavedMessages) ...[
                       const SizedBox(width: 6),
                       _buildBotBadge(),
                     ],
                   ],
                 ),
                 const SizedBox(height: 2),
+
+                // 🟢 СТАТУС ТЕКСТ
                 Row(
                   children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isOnline ? Colors.greenAccent : Colors.grey,
+                    if (!_isSavedMessages) ...[
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: statusColor,
+                          boxShadow: isGlowing
+                              ? [
+                                  BoxShadow(
+                                    color: statusColor.withValues(alpha: 0.4),
+                                    blurRadius: 4,
+                                  )
+                                ]
+                              : null,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
+                      const SizedBox(width: 5),
+                    ],
                     Text(
                       statusText,
                       style: TextStyle(
-                        color: isOnline ? Colors.greenAccent : Colors.white38,
+                        color: statusColor,
                         fontSize: 11,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -210,48 +215,82 @@ class ChatHeader extends StatelessWidget {
             ),
           ),
 
-          // КНОПКИ ДЕЙСТВИЙ
+          // 🛠️ ACTION BUTTONS
           IconButton(
-            icon: const Icon(Icons.call, color: Colors.grey, size: 20),
-            tooltip: 'Звонок',
+            icon:
+                const Icon(Icons.call_rounded, color: Colors.white54, size: 19),
+            tooltip: 'Start Voice Call',
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.videocam, color: Colors.grey, size: 20),
-            tooltip: 'Видеозвонок',
+            icon: const Icon(Icons.videocam_rounded,
+                color: Colors.white54, size: 19),
+            tooltip: 'Start Video Call',
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.push_pin, color: Colors.grey, size: 20),
-            tooltip: 'Закрепленные сообщения',
+            icon: const Icon(Icons.push_pin_rounded,
+                color: Colors.white54, size: 19),
+            tooltip: 'Pinned Messages',
             onPressed: () {},
           ),
-          IconButton(
-            icon: Icon(
-              Icons.account_box,
-              color: isProfileOpen ? Colors.deepPurpleAccent : Colors.grey,
-              size: 20,
-            ),
-            tooltip: 'Профиль пользователя',
-            onPressed: onToggleProfile,
-          ),
-          const SizedBox(width: 8),
 
-          // ПОЛЕ ПОИСКА ПО ЧАТУ
+          // 👤 PROFILE PANEL TOGGLE BUTTON WITH GLOW
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: isProfileOpen
+                  ? const Color(0xFF7C4DFF).withValues(alpha: 0.2)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isProfileOpen
+                    ? const Color(0xFF7C4DFF)
+                    : Colors.transparent,
+                width: 1,
+              ),
+              boxShadow: isProfileOpen
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF7C4DFF).withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : [],
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.account_box_rounded,
+                color: isProfileOpen ? const Color(0xFF7C4DFF) : Colors.white54,
+                size: 20,
+              ),
+              tooltip: 'User Profile',
+              onPressed: onToggleProfile,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // 🔍 SEARCH FIELD
           SizedBox(
             width: 180,
             height: 32,
             child: TextField(
-              style: const TextStyle(fontSize: 13, color: Colors.white),
+              style: const TextStyle(fontSize: 12, color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Искать в чате...',
-                hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                hintText: 'Search chat...',
+                hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
                 filled: true,
-                fillColor: const Color(0xFF0F0F13),
-                suffixIcon: const Icon(Icons.search, color: Colors.grey, size: 16),
+                fillColor: const Color(0xFF181A26),
+                suffixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: Colors.white38,
+                  size: 16,
+                ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none,
                 ),
               ),

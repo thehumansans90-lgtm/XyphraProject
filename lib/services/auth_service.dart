@@ -59,7 +59,8 @@ class AuthService {
     _applyBadges(user);
 
     if (user.avatarBytes != null && user.avatarBytes!.isNotEmpty) {
-      final uploadedUrl = await _uploadAvatarToSupabase(user.id, user.avatarBytes!);
+      final uploadedUrl =
+          await _uploadAvatarToSupabase(user.id, user.avatarBytes!);
       if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
         user.avatarUrl = uploadedUrl;
       }
@@ -88,7 +89,7 @@ class AuthService {
             updateData,
             onConflict: 'id',
           );
-      
+
       // Запускаем постоянный пинг в сеть
       startHeartbeatTimer(user.id);
       debugPrint('✅ Профиль успешно синхронизирован с Supabase!');
@@ -97,7 +98,8 @@ class AuthService {
     }
   }
 
-  static Future<void> updatePresenceStatus(String userId, {required bool isOnline, bool isIdle = false}) async {
+  static Future<void> updatePresenceStatus(String userId,
+      {required bool isOnline, bool isIdle = false}) async {
     try {
       await _supabase.from('profiles').update({
         'is_online': isOnline,
@@ -116,7 +118,8 @@ class AuthService {
     }
   }
 
-  static Future<String?> _uploadAvatarToSupabase(String userId, Uint8List imageBytes) async {
+  static Future<String?> _uploadAvatarToSupabase(
+      String userId, Uint8List imageBytes) async {
     try {
       final fileName = '$userId/avatar.png';
 
@@ -129,7 +132,8 @@ class AuthService {
             ),
           );
 
-      final publicUrl = _supabase.storage.from('avatars').getPublicUrl(fileName);
+      final publicUrl =
+          _supabase.storage.from('avatars').getPublicUrl(fileName);
       return '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
     } catch (e) {
       debugPrint('❌ Ошибка загрузки аватарки в Storage: $e');
@@ -157,11 +161,14 @@ class AuthService {
             .maybeSingle();
 
         if (serverProfile != null) {
-          localUser.displayName = serverProfile['display_name'] ?? localUser.displayName;
+          localUser.displayName =
+              serverProfile['display_name'] ?? localUser.displayName;
           localUser.username = serverProfile['username'] ?? localUser.username;
           localUser.bio = serverProfile['bio'] ?? localUser.bio;
-          localUser.avatarUrl = serverProfile['avatar_url'] ?? localUser.avatarUrl;
-          localUser.bannerColor = serverProfile['banner_color'] ?? localUser.bannerColor;
+          localUser.avatarUrl =
+              serverProfile['avatar_url'] ?? localUser.avatarUrl;
+          localUser.bannerColor =
+              serverProfile['banner_color'] ?? localUser.bannerColor;
           localUser.isOnline = true;
           localUser.lastSeen = _parseLastSeen(serverProfile['last_seen']);
 
@@ -172,7 +179,8 @@ class AuthService {
 
           _applyBadges(localUser);
 
-          await prefs.setString(_currentUserKey, jsonEncode(localUser.toJson()));
+          await prefs.setString(
+              _currentUserKey, jsonEncode(localUser.toJson()));
         }
       } catch (_) {}
 
@@ -196,33 +204,36 @@ class AuthService {
       return list
           .where((json) => userIds.contains(json['id']?.toString()))
           .map((json) {
-            final badgesList = json['badges'] != null ? List<String>.from(json['badges']) : <String>[];
-            final user = UserProfile(
-              id: json['id'] ?? '',
-              username: json['username'] ?? '',
-              tag: json['tag'] ?? '',
-              displayName: json['display_name'] ?? '',
-              bio: json['bio'] ?? '',
-              avatarUrl: json['avatar_url'] ?? '',
-              bannerColor: json['banner_color'] ?? '0xFF9C27B0',
-              joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
-              badges: badgesList,
-              isOnline: json['is_online'] ?? false,
-              lastSeen: _parseLastSeen(json['last_seen']), // FIXED
-            );
+        final badgesList = json['badges'] != null
+            ? List<String>.from(json['badges'])
+            : <String>[];
+        final user = UserProfile(
+          id: json['id'] ?? '',
+          username: json['username'] ?? '',
+          tag: json['tag'] ?? '',
+          displayName: json['display_name'] ?? '',
+          bio: json['bio'] ?? '',
+          avatarUrl: json['avatar_url'] ?? '',
+          bannerColor: json['banner_color'] ?? '0xFF9C27B0',
+          joinedDate: json['joined_date'] ?? json['joinedDate'] ?? '',
+          badges: badgesList,
+          isOnline: json['is_online'] ?? false,
+          lastSeen: _parseLastSeen(json['last_seen']), // FIXED
+        );
 
-            _applyBadges(user);
+        _applyBadges(user);
 
-            return user;
-          })
-          .toList();
+        return user;
+      }).toList();
     });
   }
 
   static Stream<List<UserProfile>> streamAllProfiles() {
     return _supabase.from('profiles').stream(primaryKey: ['id']).map((list) {
       return list.map((json) {
-        final badgesList = json['badges'] != null ? List<String>.from(json['badges']) : <String>[];
+        final badgesList = json['badges'] != null
+            ? List<String>.from(json['badges'])
+            : <String>[];
         final user = UserProfile(
           id: json['id'] ?? '',
           username: json['username'] ?? '',
@@ -275,7 +286,9 @@ class AuthService {
       }
 
       return (response as List).map((json) {
-        final badgesList = json['badges'] != null ? List<String>.from(json['badges']) : <String>[];
+        final badgesList = json['badges'] != null
+            ? List<String>.from(json['badges'])
+            : <String>[];
         final user = UserProfile(
           id: json['id'] ?? '',
           username: json['username'] ?? '',
@@ -325,7 +338,9 @@ class AuthService {
 
       if (response == null) return null;
 
-      final badgesList = response['badges'] != null ? List<String>.from(response['badges']) : <String>[];
+      final badgesList = response['badges'] != null
+          ? List<String>.from(response['badges'])
+          : <String>[];
       final user = UserProfile(
         id: response['id'] ?? '',
         username: response['username'] ?? '',
@@ -333,7 +348,8 @@ class AuthService {
         displayName: response['display_name'] ?? '',
         bio: response['bio'] ?? '',
         avatarUrl: response['avatar_url'] ?? '',
-        bannerColor: response['banner_color'] ?? response['bannerColor'] ?? '0xFF9C27B0',
+        bannerColor:
+            response['banner_color'] ?? response['bannerColor'] ?? '0xFF9C27B0',
         joinedDate: response['joined_date'] ?? response['joinedDate'] ?? '',
         badges: badgesList,
         isOnline: response['is_online'] ?? false,
@@ -351,7 +367,11 @@ class AuthService {
 
   static Future<void> toggleTesterBadge(String userId, bool isTester) async {
     try {
-      final response = await _supabase.from('profiles').select('badges').eq('id', userId).single();
+      final response = await _supabase
+          .from('profiles')
+          .select('badges')
+          .eq('id', userId)
+          .single();
       List<String> currentBadges = List<String>.from(response['badges'] ?? []);
 
       if (isTester && !currentBadges.contains('TESTER')) {
@@ -360,7 +380,8 @@ class AuthService {
         currentBadges.remove('TESTER');
       }
 
-      await _supabase.from('profiles').update({'badges': List<String>.from(currentBadges)}).eq('id', userId);
+      await _supabase.from('profiles').update(
+          {'badges': List<String>.from(currentBadges)}).eq('id', userId);
       debugPrint('Статус тестера обновлен для $userId: $isTester');
     } catch (e) {
       debugPrint('Ошибка при изменении бейджа тестера: $e');

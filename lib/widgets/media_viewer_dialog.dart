@@ -3,12 +3,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 class MediaViewerDialog extends StatefulWidget {
-  final List<Uint8List> mediaList;
+  final List<Uint8List>? mediaList;
+  final List<String>? mediaUrls;
   final int initialIndex;
 
   const MediaViewerDialog({
     super.key,
-    required this.mediaList,
+    this.mediaList,
+    this.mediaUrls,
     this.initialIndex = 0,
   });
 
@@ -19,6 +21,16 @@ class MediaViewerDialog extends StatefulWidget {
 class _MediaViewerDialogState extends State<MediaViewerDialog> {
   late PageController _pageController;
   late int _currentIndex;
+
+  int get _totalCount {
+    if (widget.mediaUrls != null && widget.mediaUrls!.isNotEmpty) {
+      return widget.mediaUrls!.length;
+    }
+    if (widget.mediaList != null && widget.mediaList!.isNotEmpty) {
+      return widget.mediaList!.length;
+    }
+    return 0;
+  }
 
   @override
   void initState() {
@@ -43,7 +55,7 @@ class _MediaViewerDialogState extends State<MediaViewerDialog> {
   }
 
   void _nextPage() {
-    if (_currentIndex < widget.mediaList.length - 1) {
+    if (_currentIndex < _totalCount - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -51,9 +63,49 @@ class _MediaViewerDialogState extends State<MediaViewerDialog> {
     }
   }
 
+  Widget _buildImageItem(int index) {
+    // 1. Отображение по сетевым ссылкам Supabase (Основной случай)
+    if (widget.mediaUrls != null && index < widget.mediaUrls!.length) {
+      final url = widget.mediaUrls![index];
+      return Image.network(
+        url,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image_rounded, color: Colors.white54, size: 48),
+              SizedBox(height: 8),
+              Text(
+                'Ошибка загрузки',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    // 2. Отображение по байтам (Локально до отправки)
+    if (widget.mediaList != null && index < widget.mediaList!.length) {
+      return Image.memory(
+        widget.mediaList![index],
+        fit: BoxFit.contain,
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasMultiple = widget.mediaList.length > 1;
+    final hasMultiple = _totalCount > 1;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -61,13 +113,13 @@ class _MediaViewerDialogState extends State<MediaViewerDialog> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // 1. Полупрозрачный размытый фон + Клик по пустому месту для закрытия
+          // 1. Размытый фон + закрытие по клику мимо картинки
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), // Размытие фона заднего плана
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                color: Colors.black.withValues(alpha: 0.65), // Полупрозрачный черный цвет
+                color: Colors.black.withValues(alpha: 0.75),
                 width: double.infinity,
                 height: double.infinity,
               ),
@@ -75,33 +127,31 @@ class _MediaViewerDialogState extends State<MediaViewerDialog> {
           ),
 
           // 2. Карусель с изображениями
-          PageView.builder(
-            controller: _pageController,
-            itemCount: widget.mediaList.length,
-            onPageChanged: (index) => setState(() => _currentIndex = index),
-            itemBuilder: (context, index) {
-              return Center(
-                // GestureDetector с GestureDetector.opaque предотвращает закрытие при клике на саму картинку
-                child: GestureDetector(
-                  onTap: () {}, // Поглощаем клик по картинке
-                  child: InteractiveViewer(
-                    maxScale: 4.0,
-                    child: Image.memory(
-                      widget.mediaList[index],
-                      fit: BoxFit.contain,
+          if (_totalCount > 0)
+            PageView.builder(
+              controller: _pageController,
+              itemCount: _totalCount,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              itemBuilder: (context, index) {
+                return Center(
+                  child: GestureDetector(
+                    onTap: () {}, // Поглощаем клик по картинке
+                    child: InteractiveViewer(
+                      maxScale: 4.0,
+                      child: _buildImageItem(index),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
 
           // 3. Кнопка ЗАКРЫТЬ (Крестик)
           Positioned(
             top: 24,
             right: 24,
             child: IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+              icon: const Icon(Icons.close_rounded,
+                  color: Colors.white, size: 28),
               style: IconButton.styleFrom(
                 backgroundColor: Colors.black.withValues(alpha: 0.5),
                 padding: const EdgeInsets.all(8),
@@ -115,7 +165,8 @@ class _MediaViewerDialogState extends State<MediaViewerDialog> {
             Positioned(
               left: 16,
               child: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 26),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 26),
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.black.withValues(alpha: 0.5),
                   padding: const EdgeInsets.all(12),
@@ -125,11 +176,12 @@ class _MediaViewerDialogState extends State<MediaViewerDialog> {
             ),
 
           // 5. Стрелка ВПРАВО
-          if (hasMultiple && _currentIndex < widget.mediaList.length - 1)
+          if (hasMultiple && _currentIndex < _totalCount - 1)
             Positioned(
               right: 16,
               child: IconButton(
-                icon: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 26),
+                icon: const Icon(Icons.arrow_forward_ios_rounded,
+                    color: Colors.white, size: 26),
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.black.withValues(alpha: 0.5),
                   padding: const EdgeInsets.all(12),
@@ -143,13 +195,14 @@ class _MediaViewerDialogState extends State<MediaViewerDialog> {
             Positioned(
               bottom: 24,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  '${_currentIndex + 1} / ${widget.mediaList.length}',
+                  '${_currentIndex + 1} / $_totalCount',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 13,

@@ -111,23 +111,28 @@ class UserProfile {
       id: json['id']?.toString() ?? '',
       username: json['username']?.toString() ?? '',
       tag: json['tag']?.toString() ?? '',
-      displayName: (json['displayName'] ?? json['display_name'])?.toString() ?? '',
+      displayName:
+          (json['displayName'] ?? json['display_name'])?.toString() ?? '',
       bio: json['bio']?.toString() ?? '',
       avatarUrl: (json['avatarUrl'] ?? json['avatar_url'])?.toString() ?? '',
       isOnline: (json['isOnline'] ?? json['is_online']) as bool? ?? false,
-      isAppActive: (json['isAppActive'] ?? json['is_app_active']) as bool? ?? false,
+      isAppActive:
+          (json['isAppActive'] ?? json['is_app_active']) as bool? ?? false,
       status: UserStatus.fromJson(json['status']),
       avatarBytes: json['avatarBytes'] != null
           ? base64Decode(json['avatarBytes'] as String)
           : null,
-      bannerColor: (json['bannerColor'] ?? json['banner_color'])?.toString() ?? '',
+      bannerColor:
+          (json['bannerColor'] ?? json['banner_color'])?.toString() ?? '',
       joinedDate: (json['joinedDate'] ?? json['joined_date'])?.toString() ?? '',
-      badges: (json['badges'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      badges:
+          (json['badges'] as List?)?.map((e) => e.toString()).toList() ?? [],
       lastUsernameChange: json['lastUsernameChange'] != null
           ? DateTime.tryParse(json['lastUsernameChange'].toString())
           : null,
       lastSeen: (json['lastSeen'] ?? json['last_seen']) != null
-          ? DateTime.tryParse((json['lastSeen'] ?? json['last_seen']).toString())
+          ? DateTime.tryParse(
+              (json['lastSeen'] ?? json['last_seen']).toString())
           : null,
     );
   }
@@ -144,6 +149,7 @@ class ChatMessage {
   // Поля для работы с медиа
   final bool isVideo;
   bool isUploading;
+  final String? mediaUrl; // ДОБАВЛЕНО: Ссылка на медиа из Supabase Storage
   final List<Uint8List>? mediaListBytes;
 
   ChatMessage({
@@ -155,6 +161,7 @@ class ChatMessage {
     this.isRead = false,
     this.isVideo = false,
     this.isUploading = false,
+    this.mediaUrl, // ДОБАВЛЕНО
     List<Uint8List>? mediaListBytes,
     Uint8List? mediaBytes,
   }) : mediaListBytes =
@@ -170,6 +177,7 @@ class ChatMessage {
     String? text,
     bool? isEdited,
     bool? isRead,
+    String? mediaUrl,
     List<Uint8List>? mediaListBytes,
     bool? isVideo,
     bool? isUploading,
@@ -181,6 +189,7 @@ class ChatMessage {
       timestamp: timestamp,
       isEdited: isEdited ?? this.isEdited,
       isRead: isRead ?? this.isRead,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
       mediaListBytes: mediaListBytes ?? this.mediaListBytes,
       isVideo: isVideo ?? this.isVideo,
       isUploading: isUploading ?? this.isUploading,
@@ -196,6 +205,7 @@ class ChatMessage {
         'isRead': isRead,
         'isVideo': isVideo,
         'isUploading': isUploading,
+        'mediaUrl': mediaUrl, // ДОБАВЛЕНО
         'mediaListBytes':
             mediaListBytes?.map((bytes) => base64Encode(bytes)).toList(),
       };
@@ -215,11 +225,15 @@ class ChatMessage {
       id: json['id']?.toString() ?? '',
       senderId: (json['senderId'] ?? json['sender_id'])?.toString() ?? '',
       text: (json['text'] ?? json['content'])?.toString() ?? '',
-      timestamp: DateTime.tryParse((json['timestamp'] ?? json['created_at'])?.toString() ?? '') ?? DateTime.now(),
+      timestamp: DateTime.tryParse(
+              (json['timestamp'] ?? json['created_at'])?.toString() ?? '') ??
+          DateTime.now(),
       isEdited: (json['isEdited'] ?? json['is_edited']) as bool? ?? false,
       isRead: (json['isRead'] ?? json['is_read']) as bool? ?? false,
       isVideo: (json['isVideo'] ?? json['is_video']) as bool? ?? false,
       isUploading: json['isUploading'] as bool? ?? false,
+      mediaUrl:
+          (json['mediaUrl'] ?? json['media_url'])?.toString(), // ДОБАВЛЕНО
       mediaListBytes: parsedMedia,
     );
   }

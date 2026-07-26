@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
+import 'status_indicator.dart';
+import '../screens/user_avatar.dart';
 
 class ChatWelcomeCard extends StatelessWidget {
   final UserProfile targetUser;
   final bool isBot;
-  final bool isSavedMessages; // Флаг для «Избранного»
+  final bool isSavedMessages;
 
   const ChatWelcomeCard({
     super.key,
@@ -13,130 +15,126 @@ class ChatWelcomeCard extends StatelessWidget {
     this.isSavedMessages = false,
   });
 
-  // Определение изображения аватарки
-  ImageProvider? _getAvatarImage() {
-    if (targetUser.avatarBytes != null && targetUser.avatarBytes!.isNotEmpty) {
-      return MemoryImage(targetUser.avatarBytes!);
-    }
-    if (targetUser.avatarUrl.isNotEmpty) {
-      return NetworkImage(targetUser.avatarUrl);
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final avatarImage = _getAvatarImage();
+    // Определяем тип чата
+    final bool effectiveIsSaved = isSavedMessages ||
+        targetUser.id == 'saved_messages' ||
+        targetUser.username == 'saved_messages' ||
+        targetUser.badges.contains('SAVED');
 
-    // Проверяем, является ли пользователь ботом (через проп или бейдж в модели)
-    final bool effectiveIsBot = isBot || targetUser.badges.contains('BOT');
-    
-    // Статус сети (если у тебя в UserModel есть поле isOnline)
-    final bool isOnline = targetUser.isOnline;
+    final bool effectiveIsBot =
+        !effectiveIsSaved && (isBot || targetUser.badges.contains('BOT'));
 
-    // Определяем цвет и всплывающий текст индикатора
-    final Color statusColor = effectiveIsBot
-        ? const Color(0xFF23A55A) // Зеленый для ботов
-        : (isOnline ? const Color(0xFF23A55A) : const Color(0xFF80848E)); // Зеленый / Серый
-
-    final String statusTooltip = effectiveIsBot
-        ? 'В сети 24/7'
-        : (isOnline ? 'В сети' : 'Не в сети');
+    final String displayName = targetUser.displayName.isNotEmpty
+        ? targetUser.displayName
+        : targetUser.username;
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(top: 12, bottom: 28, left: 16, right: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131520).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF7C4DFF).withValues(alpha: 0.15),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF7C4DFF).withValues(alpha: 0.05),
+            blurRadius: 30,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // АВАТАР
+          // 👤 АВАТАР С НЕОНОВЫМ ОРЕОЛОМ
           Stack(
             clipBehavior: Clip.none,
             children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: isSavedMessages
-                    ? Colors.amber.shade700
-                    : Colors.deepPurpleAccent,
-                backgroundImage: avatarImage,
-                child: avatarImage == null
-                    ? (isSavedMessages
-                        ? const Icon(Icons.bookmark_rounded, size: 40, color: Colors.white)
-                        : Text(
-                            targetUser.displayName.isNotEmpty
-                                ? targetUser.displayName[0].toUpperCase()
-                                : 'U',
-                            style: const TextStyle(
-                              fontSize: 32,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ))
-                    : null,
-              ),
-              // Динамический индикатор статуса (скрыт для Избранного)
-              if (!isSavedMessages)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Tooltip(
-                    message: statusTooltip,
-                    child: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: statusColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFF1E1F22),
-                          width: 3.5,
-                        ),
-                      ),
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: effectiveIsSaved
+                          ? Colors.amber.withValues(alpha: 0.25)
+                          : const Color(0xFF7C4DFF).withValues(alpha: 0.3),
+                      blurRadius: 24,
+                      spreadRadius: 2,
                     ),
+                  ],
+                ),
+                child: UserAvatar(
+                  user: targetUser,
+                  isBot: effectiveIsBot,
+                  radius: 42,
+                ),
+              ),
+              // Индикатор статуса для людей/ботов
+              if (!effectiveIsSaved)
+                Positioned(
+                  right: 2,
+                  bottom: 2,
+                  child: StatusIndicator(
+                    user: targetUser,
+                    isConnected: true,
+                    size: 18,
+                    enableAnimation: true,
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
-          // ИМЯ + БЕЙДЖИ
+          // 🏷️ ЗАГОЛОВОК И БЕЙДЖИ
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(
                 child: Text(
-                  isSavedMessages
-                      ? 'Избранное'
-                      : (targetUser.displayName.isNotEmpty
-                          ? targetUser.displayName
-                          : targetUser.username),
+                  effectiveIsSaved ? 'Saved Messages' : displayName,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (effectiveIsBot && !isSavedMessages) ...[
+              if (effectiveIsBot) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                   decoration: BoxDecoration(
-                    color: Colors.deepPurpleAccent,
-                    borderRadius: BorderRadius.circular(4),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF7C4DFF), Color(0xFFB388FF)],
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF7C4DFF).withValues(alpha: 0.4),
+                        blurRadius: 6,
+                      )
+                    ],
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check, size: 10, color: Colors.white),
+                      Icon(Icons.bolt_rounded, size: 11, color: Colors.white),
                       SizedBox(width: 2),
                       Text(
-                        'БОТ',
+                        'BOT',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
@@ -145,74 +143,166 @@ class ChatWelcomeCard extends StatelessWidget {
               ],
             ],
           ),
-          if (!isSavedMessages)
+
+          if (!effectiveIsSaved) ...[
+            const SizedBox(height: 3),
             Text(
-              '@${targetUser.username}${targetUser.tag}',
-              style: const TextStyle(color: Colors.grey, fontSize: 16),
+              '@${targetUser.username}${targetUser.tag.isNotEmpty ? targetUser.tag : ''}',
+              style: TextStyle(
+                color: const Color(0xFF7C4DFF).withValues(alpha: 0.8),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
+          ],
           const SizedBox(height: 12),
 
-          // ПРИВЕТСТВЕННЫЙ ТЕКСТ
+          // 💬 ТЕКСТ-ОПИСАНИЕ
           Text(
-            isSavedMessages
-                ? 'Ваше личное пространство для заметок, файлов и сохраняемых сообщений. Доступно только вам.'
+            effectiveIsSaved
+                ? 'Your personal cloud vault for notes, media, and saved messages. Syncs instantly across all your devices.'
                 : (effectiveIsBot
-                    ? 'Это начало вашей истории сообщений с ботом ${targetUser.displayName}.'
-                    : 'Это начало истории ваших личных сообщений с ${targetUser.displayName}.'),
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ? 'Beginning of secure communication log with AI Assistant $displayName.'
+                    : 'This is the start of your encrypted direct message channel with $displayName.'),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13.5,
+              height: 1.45,
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
-          // КНОПКИ ДЕЙСТВИЙ (СКРЫТЫ ДЛЯ ИЗБРАННОГО)
-          if (!isSavedMessages)
+          // 🛠️ СТИЛЬНЫЕ ИНТЕРАКТИВНЫЕ ЧИПЫ (Скрыты для Избранного, адаптированы для Ботов и Людей)
+          if (!effectiveIsSaved)
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2B2D31),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  onPressed: () {},
-                  icon: const Icon(Icons.blur_on, size: 16, color: Colors.deepPurpleAccent),
-                  label: const Text('1 общий сервер'),
+                _buildActionChip(
+                  icon: Icons.shield_outlined,
+                  label: 'Encrypted',
+                  color: Colors.greenAccent,
+                  onTap: () {},
                 ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2B2D31),
-                    foregroundColor: Colors.redAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                if (effectiveIsBot)
+                  _buildActionChip(
+                    icon: Icons.smart_toy_outlined,
+                    label: 'Official Bot',
+                    color: const Color(0xFF7C4DFF),
+                    onTap: () {},
+                  )
+                else
+                  _buildActionChip(
+                    icon: Icons.block_rounded,
+                    label: 'Block',
+                    color: Colors.redAccent,
+                    isDestructive: true,
+                    onTap: () {},
                   ),
-                  onPressed: () {},
-                  child: const Text('Заблокировать'),
-                ),
               ],
             ),
+
           const SizedBox(height: 24),
 
-          // РАЗДЕЛИТЕЛЬ ДАТЫ
+          // 📅 ДАТА-РАЗДЕЛИТЕЛЬ BUBBLE
           Row(
             children: [
-              const Expanded(child: Divider(color: Colors.white10)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              Expanded(
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFF7C4DFF).withValues(alpha: 0.3),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F2130),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white10,
+                    width: 0.8,
+                  ),
+                ),
                 child: Text(
                   targetUser.joinedDate.isNotEmpty
                       ? targetUser.joinedDate
-                      : '21 июля 2026 г.',
-                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      : 'July 21, 2026',
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              const Expanded(child: Divider(color: Colors.white10)),
+              Expanded(
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF7C4DFF).withValues(alpha: 0.3),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Вспомогательный виджет для неоновых чипов
+  Widget _buildActionChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDestructive
+                ? Colors.red.withValues(alpha: 0.1)
+                : const Color(0xFF1A1D2C),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: color.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isDestructive ? Colors.redAccent : Colors.white54,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
