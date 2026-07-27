@@ -171,7 +171,6 @@ class _AuthScreenState extends State<AuthScreen>
     return (100000 + rnd.nextInt(900000)).toString();
   }
 
-  /// Send email without third-party packages (using dart:io)
   Future<bool> _sendActualEmail(String targetEmail, String code) async {
     try {
       final client = HttpClient();
@@ -181,9 +180,10 @@ class _AuthScreenState extends State<AuthScreen>
       request.headers.set('content-type', 'application/json');
 
       final payload = jsonEncode({
-        'service_id': 'xyphra_auth_service',
-        'template_id': 'xyphra_verification_template',
-        'user_id': 'xyphra_public_key',
+        'service_id': 'service_3lui5x2',
+        'template_id': 'template_tqmdqmq',
+        'user_id': 'nwJZ7J0jWnUpZWKI-',
+        'accessToken': 'uH71p4SW8qeb-0QBp5tLz',
         'template_params': {
           'to_email': targetEmail.toLowerCase(),
           'code': code,
@@ -193,9 +193,17 @@ class _AuthScreenState extends State<AuthScreen>
 
       request.write(payload);
       final response = await request.close();
-      return response.statusCode == 200;
-    } catch (_) {
+
+      if (response.statusCode != 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        debugPrint('EmailJS Error [${response.statusCode}]: $responseBody');
+        return false;
+      }
+
       return true;
+    } catch (e) {
+      debugPrint('Exception sending email: $e');
+      return false;
     }
   }
 
@@ -296,7 +304,13 @@ class _AuthScreenState extends State<AuthScreen>
       }
 
       _generatedCode = _generateRandomCode();
-      await _sendActualEmail(fullEmail, _generatedCode!);
+      final isSent = await _sendActualEmail(fullEmail, _generatedCode!);
+
+      if (!isSent) {
+        setState(() => _isLoading = false);
+        _showSnackBar('Failed to send email code. Please check parameters.');
+        return;
+      }
 
       setState(() {
         _isLoading = false;

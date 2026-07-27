@@ -23,6 +23,7 @@ class EditProfileDialog extends StatefulWidget {
 class _EditProfileDialogState extends State<EditProfileDialog> {
   late final TextEditingController _displayNameController;
   late final TextEditingController _usernameController;
+  late final TextEditingController _emailController;
   late final TextEditingController _bioController;
   Uint8List? _newAvatarBytes;
   bool _isSaving = false;
@@ -34,6 +35,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
         TextEditingController(text: widget.user.displayName);
     _usernameController =
         TextEditingController(text: _getFullUsernameForEdit());
+    _emailController = TextEditingController(text: widget.user.email);
     _bioController = TextEditingController(text: widget.user.bio);
   }
 
@@ -41,6 +43,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   void dispose() {
     _displayNameController.dispose();
     _usernameController.dispose();
+    _emailController.dispose();
     _bioController.dispose();
     super.dispose();
   }
@@ -63,6 +66,12 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       return false;
     }
     return RegExp(r'^[a-zA-Z0-9_#]+$').hasMatch(username);
+  }
+
+  bool _validateEmail(String email) {
+    if (email.isEmpty) return true; // Разрешаем пустое, если необязательно
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    return emailRegex.hasMatch(email);
   }
 
   Future<void> _pickNewAvatar() async {
@@ -101,13 +110,26 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   Future<void> _saveProfile() async {
     final newName = _displayNameController.text.trim();
     final rawUsername = _usernameController.text.trim().replaceAll('@', '');
+    final newEmail = _emailController.text.trim().toLowerCase();
     final newBio = _bioController.text.trim();
 
+    // Валидация Username
     if (rawUsername.isNotEmpty && !_validateUsername(rawUsername)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
               'Username must contain letters, at least 1 digit, and may use "_" or "#"'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    // Валидация Email
+    if (newEmail.isNotEmpty && !_validateEmail(newEmail)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email address'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -123,6 +145,9 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       if (rawUsername.isNotEmpty) {
         widget.user.username = rawUsername;
       }
+
+      // Запись нового Email в профиль
+      widget.user.email = newEmail;
       widget.user.bio = newBio;
 
       if (_newAvatarBytes != null) {
@@ -154,7 +179,6 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamically pass selected avatar bytes without modifying UserAvatar class parameters
     final displayUser = _newAvatarBytes != null
         ? widget.user.copyWith(avatarBytes: _newAvatarBytes)
         : widget.user;
@@ -260,6 +284,29 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                   labelStyle: const TextStyle(color: Colors.white54),
                   hintText: 'e.g., user_123 or dev#4085',
                   hintStyle: const TextStyle(color: Colors.white24),
+                  filled: true,
+                  fillColor: const Color(0xFF1A1D2A),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Email Address (Добавленное поле)
+              TextField(
+                controller: _emailController,
+                enabled: !_isSaving,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Email Address',
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  hintText: 'user@example.com',
+                  hintStyle: const TextStyle(color: Colors.white24),
+                  prefixIcon:
+                      const Icon(Icons.email_outlined, color: Colors.white38),
                   filled: true,
                   fillColor: const Color(0xFF1A1D2A),
                   border: OutlineInputBorder(

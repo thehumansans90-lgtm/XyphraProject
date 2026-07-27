@@ -25,6 +25,7 @@ class UserProfile {
   String username;
   final String tag;
   String displayName;
+  String email; // 👈 ДОБАВЛЕНО
   String bio;
   String avatarUrl;
   bool isOnline;
@@ -42,6 +43,7 @@ class UserProfile {
     required this.username,
     required this.tag,
     required this.displayName,
+    this.email = '', // 👈 ДОБАВЛЕНО
     required this.bio,
     required this.avatarUrl,
     this.avatarBytes,
@@ -56,8 +58,11 @@ class UserProfile {
   });
 
   UserProfile copyWith({
+    String? id,
     String? username,
+    String? tag,
     String? displayName,
+    String? email,
     String? bio,
     String? avatarUrl,
     bool? isOnline,
@@ -65,15 +70,17 @@ class UserProfile {
     UserStatus? status,
     Uint8List? avatarBytes,
     String? bannerColor,
+    String? joinedDate, // 👈 Добавлен опциональный параметр
     List<String>? badges,
     DateTime? lastUsernameChange,
     DateTime? lastSeen,
   }) {
     return UserProfile(
-      id: id,
+      id: id ?? this.id,
       username: username ?? this.username,
-      tag: tag,
+      tag: tag ?? this.tag,
       displayName: displayName ?? this.displayName,
+      email: email ?? this.email,
       bio: bio ?? this.bio,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       isOnline: isOnline ?? this.isOnline,
@@ -81,7 +88,7 @@ class UserProfile {
       status: status ?? this.status,
       avatarBytes: avatarBytes ?? this.avatarBytes,
       bannerColor: bannerColor ?? this.bannerColor,
-      joinedDate: joinedDate,
+      joinedDate: joinedDate ?? this.joinedDate,
       badges: badges ?? this.badges,
       lastUsernameChange: lastUsernameChange ?? this.lastUsernameChange,
       lastSeen: lastSeen ?? this.lastSeen,
@@ -93,6 +100,7 @@ class UserProfile {
         'username': username,
         'tag': tag,
         'displayName': displayName,
+        'email': email, // 👈 ДОБАВЛЕНО
         'bio': bio,
         'avatarUrl': avatarUrl,
         'isOnline': isOnline,
@@ -113,6 +121,8 @@ class UserProfile {
       tag: json['tag']?.toString() ?? '',
       displayName:
           (json['displayName'] ?? json['display_name'])?.toString() ?? '',
+      email: (json['email'] ?? json['email_address'])?.toString() ??
+          '', // 👈 ДОБАВЛЕНО
       bio: json['bio']?.toString() ?? '',
       avatarUrl: (json['avatarUrl'] ?? json['avatar_url'])?.toString() ?? '',
       isOnline: (json['isOnline'] ?? json['is_online']) as bool? ?? false,
@@ -149,7 +159,7 @@ class ChatMessage {
   // Поля для работы с медиа
   final bool isVideo;
   bool isUploading;
-  final String? mediaUrl; // ДОБАВЛЕНО: Ссылка на медиа из Supabase Storage
+  final String? mediaUrl;
   final List<Uint8List>? mediaListBytes;
 
   ChatMessage({
@@ -161,13 +171,12 @@ class ChatMessage {
     this.isRead = false,
     this.isVideo = false,
     this.isUploading = false,
-    this.mediaUrl, // ДОБАВЛЕНО
+    this.mediaUrl,
     List<Uint8List>? mediaListBytes,
     Uint8List? mediaBytes,
   }) : mediaListBytes =
             mediaListBytes ?? (mediaBytes != null ? [mediaBytes] : null);
 
-  // Геттер для обратной совместимости, если где-то нужен 1-й файл
   Uint8List? get mediaBytes =>
       (mediaListBytes != null && mediaListBytes!.isNotEmpty)
           ? mediaListBytes!.first
@@ -205,7 +214,7 @@ class ChatMessage {
         'isRead': isRead,
         'isVideo': isVideo,
         'isUploading': isUploading,
-        'mediaUrl': mediaUrl, // ДОБАВЛЕНО
+        'mediaUrl': mediaUrl,
         'mediaListBytes':
             mediaListBytes?.map((bytes) => base64Encode(bytes)).toList(),
       };
@@ -232,8 +241,7 @@ class ChatMessage {
       isRead: (json['isRead'] ?? json['is_read']) as bool? ?? false,
       isVideo: (json['isVideo'] ?? json['is_video']) as bool? ?? false,
       isUploading: json['isUploading'] as bool? ?? false,
-      mediaUrl:
-          (json['mediaUrl'] ?? json['media_url'])?.toString(), // ДОБАВЛЕНО
+      mediaUrl: (json['mediaUrl'] ?? json['media_url'])?.toString(),
       mediaListBytes: parsedMedia,
     );
   }

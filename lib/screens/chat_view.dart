@@ -53,6 +53,17 @@ class _ChatViewState extends State<ChatView> {
   bool _isVideoMedia = false;
 
   @override
+  void didUpdateWidget(covariant ChatView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // При смене собеседника отменяем режим редактирования
+    if (oldWidget.selectedTargetUser.id != widget.selectedTargetUser.id) {
+      _cancelEditing();
+      _attachedMediaBytes = null;
+      _attachedMediaName = null;
+    }
+  }
+
+  @override
   void dispose() {
     _msgController.dispose();
     _msgFocusNode.dispose();
@@ -60,7 +71,6 @@ class _ChatViewState extends State<ChatView> {
     super.dispose();
   }
 
-  // При reverse: true "низ" списка — это позиция 0.0
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_chatScrollController.hasClients) {
@@ -226,6 +236,7 @@ class _ChatViewState extends State<ChatView> {
     setState(() {
       _editingMessage = message;
       _msgController.text = message.text;
+      _attachedMediaBytes = null;
     });
     _msgFocusNode.requestFocus();
   }
@@ -308,7 +319,6 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
-  // 🧹 CLEAR CHAT HISTORY WITH LOADING BAR
   Future<void> _clearChatHistory() async {
     final targetId = widget.selectedTargetUser.id;
 
@@ -391,7 +401,6 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
-  // --- ENGLISH DATE & TIME FORMATTERS ---
   String _formatDateDivider(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -535,7 +544,6 @@ class _ChatViewState extends State<ChatView> {
                 final showAvatar = index == reversedMessages.length - 1 ||
                     reversedMessages[index + 1].senderId != msg.senderId;
 
-                // --- DIVIDER LOGIC (DATE & HOUR BREAK) ---
                 final bool isOldestMsgInList =
                     index == reversedMessages.length - 1;
 
@@ -557,7 +565,6 @@ class _ChatViewState extends State<ChatView> {
                     final diffMinutes =
                         currTime.difference(prevTime).inMinutes.abs();
                     if (diffMinutes >= 60) {
-                      // Displays both time and contextual date when > 1h passes
                       final timeStr = _formatTimeDivider(currTime);
                       final dateStr = _formatDateDivider(currTime);
                       topDivider = _buildTimeDivider('$timeStr · $dateStr');
@@ -888,7 +895,7 @@ class _QuickCanvasDialogState extends State<QuickCanvasDialog> {
   }
 
   Future<void> _exportAndSend(Size canvasSize) async {
-    if (_points.isEmpty) return;
+    if (_points.isEmpty || _isExporting) return;
     setState(() => _isExporting = true);
     try {
       final imageBytes = await _generateImageBytes(canvasSize);
@@ -1000,70 +1007,76 @@ class _QuickCanvasDialogState extends State<QuickCanvasDialog> {
                         BoxShadow(color: Colors.black26, blurRadius: 10)
                       ],
                     ),
-                    child: GestureDetector(
-                      onPanStart: (details) => setState(() => _points.add(
-                          CanvasPoint(details.localPosition, _selectedColor,
-                              _strokeWidth))),
-                      onPanUpdate: (details) => setState(() => _points.add(
-                          CanvasPoint(details.localPosition, _selectedColor,
-                              _strokeWidth))),
-                      onPanEnd: (_) => setState(() => _points.add(null)),
-                      child: CustomPaint(
-                          painter: CanvasPainter(_points), size: canvasSize),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onPanStart: (details) => setState(() => _points.add(
+                                CanvasPoint(details.localPosition,
+                                    _selectedColor, _strokeWidth))),
+                            onPanUpdate: (details) => setState(() =>
+                                _points.add(CanvasPoint(details.localPosition,
+                                    _selectedColor, _strokeWidth))),
+                            onPanEnd: (_) => setState(() => _points.add(null)),
+                            child: CustomPaint(
+                              painter: CanvasPainter(_points),
+                              size: Size.infinite,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          color: AppTheme.panelBgLight.withValues(alpha: 0.5),
+                          child: Row(
+                            children: [
+                              TextButton.icon(
+                                onPressed: _isExporting
+                                    ? null
+                                    : () => setState(() => _points.clear()),
+                                icon: const Icon(Icons.delete_outline_rounded,
+                                    color: AppTheme.danger, size: 20),
+                                label: const Text('Clear Canvas',
+                                    style: TextStyle(
+                                        color: AppTheme.danger,
+                                        fontWeight: FontWeight.bold)),
+                              ),
+                              const Spacer(),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primary,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                  elevation: 6,
+                                  shadowColor: AppTheme.primaryGlow,
+                                ),
+                                onPressed: _isExporting
+                                    ? null
+                                    : () => _exportAndSend(canvasSize),
+                                icon: _isExporting
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white))
+                                    : const Icon(Icons.send_rounded, size: 18),
+                                label: const Text('Attach',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15)),
+                              ),
+                            ],
+                          ),
+                        )
+                      ],
                     ),
                   );
                 },
               ),
             ),
-            const SizedBox(height: 20),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => setState(() => _points.clear()),
-                      icon: const Icon(Icons.delete_outline_rounded,
-                          color: AppTheme.danger, size: 20),
-                      label: const Text('Clear Canvas',
-                          style: TextStyle(
-                              color: AppTheme.danger,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                    const Spacer(),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        elevation: 10,
-                        shadowColor: AppTheme.primaryGlow,
-                      ),
-                      onPressed: _isExporting
-                          ? null
-                          : () {
-                              final renderBox =
-                                  context.findRenderObject() as RenderBox?;
-                              final size =
-                                  renderBox?.size ?? const Size(460, 400);
-                              _exportAndSend(Size(size.width, size.height));
-                            },
-                      icon: _isExporting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.send_rounded, size: 18),
-                      label: const Text('Attach',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15)),
-                    ),
-                  ],
-                );
-              },
-            )
           ],
         ),
       ),
